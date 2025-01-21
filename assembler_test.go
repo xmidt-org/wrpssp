@@ -5,6 +5,8 @@ package wrpssp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"testing"
 
@@ -157,7 +159,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 				Payload: []byte("Hello"),
 			},
 			expected: map[uint64]block{},
-			err:      errNotHandled,
+			err:      wrp.ErrNotHandled,
 		}, {
 			name: "no message number",
 			assembler: &Assembler{
@@ -277,6 +279,67 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 			err := tt.assembler.ProcessWRP(ctx, tt.msg)
 			assert.ErrorIs(t, err, tt.err)
 			assert.Equal(t, tt.expected, tt.assembler.blocks)
+		})
+	}
+}
+
+func TestGetStreamID(t *testing.T) {
+	someErr := fmt.Errorf("some error")
+	tests := []struct {
+		name    string
+		msg     wrp.Message
+		wantID  string
+		wantErr error
+	}{
+		{
+			name: "Valid SSP Message",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-id:Test-Stream-Id",
+					"stream-packet-number:0",
+				},
+			},
+			wantID: "Test-Stream-Id",
+		}, {
+			name: "Non-SSP Message",
+			msg: wrp.Message{
+				Type: wrp.SimpleRequestResponseMessageType,
+			},
+			wantErr: wrp.ErrNotHandled,
+		}, {
+			name: "A SSP message without the stream-pack-number",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-id:Test-Stream-Id",
+				},
+			},
+			wantErr: someErr,
+		}, {
+			name: "SSP Message Without Stream ID",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+			},
+			wantErr: wrp.ErrNotHandled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotID, err := GetStreamID(tt.msg)
+
+			if tt.wantErr != nil {
+				assert.Error(t, err)
+				if !errors.Is(tt.wantErr, someErr) {
+					assert.ErrorIs(t, err, tt.wantErr)
+				}
+				assert.Empty(t, gotID)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantID, gotID)
 		})
 	}
 }

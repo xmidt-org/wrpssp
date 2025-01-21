@@ -21,7 +21,7 @@ func (f optionFunc) apply(file *Packetizer) error {
 }
 
 // ID sets the ID of the stream.  The ID must be a non-empty string containing
-// only [A-Za-z0-9_-].  This is a required field.
+// only [A-Za-z0-9 !#$&'()*+,./:;=?@[\]~_-].  This is a required field.
 func ID(id string) Option {
 	return optionFunc(func(s *Packetizer) error {
 		s.headers.id = id

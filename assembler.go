@@ -5,16 +5,11 @@ package wrpssp
 
 import (
 	"context"
-	"errors"
 	"io"
 	"strings"
 	"sync"
 
 	"github.com/xmidt-org/wrp-go/v3"
-)
-
-var (
-	errNotHandled = errors.New("not handled")
 )
 
 // Assembler is a struct that reads from a stream of WRP messages and assembles
@@ -114,7 +109,7 @@ func (a *Assembler) close() {
 // The context is not used, but is required by the wrp.Processor interface.
 func (a *Assembler) ProcessWRP(_ context.Context, msg wrp.Message) error {
 	if !isSSP(&msg) {
-		return errNotHandled
+		return wrp.ErrNotHandled
 	}
 
 	h, err := get(&msg)
@@ -149,4 +144,18 @@ func (a *Assembler) ProcessWRP(_ context.Context, msg wrp.Message) error {
 	}
 
 	return nil
+}
+
+// GetStreamID returns the stream ID of the message if it is an SSP message.
+func GetStreamID(msg wrp.Message) (string, error) {
+	if !isSSP(&msg) {
+		return "", wrp.ErrNotHandled
+	}
+
+	h, err := get(&msg)
+	if err != nil {
+		return "", err
+	}
+
+	return h.id, nil
 }
