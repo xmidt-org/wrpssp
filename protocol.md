@@ -38,14 +38,35 @@ is mainly designed for sending files from a CPE or streaming data from the CPE,
 and request response handling will need to be handled via events instead of the
 simpler "Simple Request-Response" (msg_type = 3) message type.
 
+The destination (dst) field of the Simple Event message must be in the following format:
+```bnf
+event:<application-name>/<stream-id>
+
+<application-name> ::= <string>
+<stream-id> ::= <string>
+```
+- `application-id`: A unique application identifier.
+- `stream-id`: The unique stream identifier.
+
 The wrp message headers field should contain the following control headers:
 
 ```bnf
-<stream-id> ::= <string>
-<stream-packet-number> ::= "0" | [1-9][0-9]*
+<stream-packet-number> ::= [1-9][0-9]*
 <stream-final-packet> ::= <string>
 <stream-estimated-total-length> ::= [1-9][0-9]*
+```
 
+Any whitespace found is ignored as well as the case of the labels.
+
+- `stream-packet-number`: **Required** The 0-index based packet reassembly order.
+- `stream-final-packet`: **Required** Marks the final packet in the stream and
+   end of stream reason.  Only present in the final packet.
+- `stream-estimated-total-length`: **Optional** Indicates the estimated total
+   length if the stream is a known size.  The value is informative only.
+
+### String Grammar
+The following grammar is used for above fields defined as <string>:
+```bnf
 <string>  ::= <letter> | <digit> | <symbol> *
 <letter>         ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" |
                      "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" |
@@ -58,15 +79,6 @@ The wrp message headers field should contain the following control headers:
                      "," | "-" | "." | "/" | ":" | ";" | "=" | "?" | "@" | "[" |
                      "\" | "]" | "_" | | "~"
 ```
-
-Any whitespace found is ignored as well as the case of the labels.
-
-- `stream-id`: **Required** The unique stream identifier.
-- `stream-packet-number`: **Required** The 0-index based packet reassembly order.
-- `stream-final-packet`: **Required** Marks the final packet in the stream and
-   end of stream reason.  Only present in the final packet.
-- `stream-estimated-total-length`: **Optional** Indicates the estimated total
-   length if the stream is a known size.  The value is informative only.
 
 ## 3. Segmentation and Reassembly
 
