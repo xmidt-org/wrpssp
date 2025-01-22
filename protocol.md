@@ -38,29 +38,29 @@ is mainly designed for sending files from a CPE or streaming data from the CPE,
 and request response handling will need to be handled via events instead of the
 simpler "Simple Request-Response" (msg_type = 3) message type.
 
-The destination (dst) field of the Simple Event message must be in the following format:
-```bnf
-event:<application-name>/<stream-id>
-
-<application-name> ::= <string>
-<stream-id> ::= <string>
-```
-- `application-id`: A unique application identifier.
-- `stream-id`: The unique stream identifier.
-
 The wrp message headers field should contain the following control headers:
 
 ```bnf
+<stream-id> ::= <string>
 <stream-packet-number> ::= [1-9][0-9]*
 <stream-final-packet> ::= <string>
+<stream-encoding> ::= 'gzip' | 'deflate' | 'identity'
 <stream-estimated-total-length> ::= [1-9][0-9]*
 ```
 
 Any whitespace found is ignored as well as the case of the labels.
 
+- `stream-id`: The unique stream identifier.
 - `stream-packet-number`: **Required** The 0-index based packet reassembly order.
 - `stream-final-packet`: **Required** Marks the final packet in the stream and
    end of stream reason.  Only present in the final packet.
+- `stream-encoding`: **Optional** The encoding used to create the payload.
+    - `gzip`: The original payload was gzipped and the compressed version was
+      sent.
+    - `defalte`: The original payload was deflated and the compressed version
+      was sent.
+    - `identity`: The payload is a raw stream of bytes.  If the header is
+      omitted, `identity` is the default value.
 - `stream-estimated-total-length`: **Optional** Indicates the estimated total
    length if the stream is a known size.  The value is informative only.
 
@@ -90,6 +90,12 @@ Reassembly involves placing the received WRP payload in the correct order within
 the assembly buffer.
 
 Packets MAY be delivered out of order and this MUST be tolerated.
+
+The encoding for each packet MAY be different for each packet.
+
+Each packet is optionally compressed in isolation.  This allows the producer of
+the stream to compress as they go instead of needing to have an entire buffer of
+the complete stream in memory.
 
 ## 4. Duplicate Packets
 
