@@ -43,7 +43,7 @@ The wrp message headers field should contain the following control headers:
 ```bnf
 <stream-id> ::= <string>
 <stream-packet-number> ::= [1-9][0-9]*
-<stream-final-packet> ::= <string>
+<stream-final-packet> ::= 'eof' | <string>
 <stream-encoding> ::= 'gzip' | 'deflate' | 'identity'
 <stream-estimated-total-length> ::= [1-9][0-9]*
 ```
@@ -53,7 +53,9 @@ Any whitespace found is ignored as well as the case of the labels.
 - `stream-id`: The unique stream identifier.
 - `stream-packet-number`: **Required** The 0-index based packet reassembly order.
 - `stream-final-packet`: **Required** Marks the final packet in the stream and
-   end of stream reason.  Only present in the final packet.
+   end of stream reason.  Only present in the final packet.  The value of 'eof'
+   indicates the expected EOF condition has been met.  Any other value indicates
+   an unexpected EOF condition has been encountered.
 - `stream-encoding`: **Optional** The encoding used to create the payload.
     - `gzip`: The original payload was gzipped and the compressed version was
       sent.
