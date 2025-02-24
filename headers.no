@@ -8,16 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xmidt-org/wrp-go/v3"
-)
-
-const (
-	// These are the string literals found in the messages.
-
-	stream_id               = "stream-id"
-	stream_packet_number    = "stream-packet-number"
-	stream_estimated_length = "stream-estimated-total-length"
-	stream_final_packet     = "stream-final-packet"
+	"github.com/xmidt-org/wrp-go/v5"
 )
 
 // headers provides an easy way to consistently set, get, and validate the headers.
@@ -26,6 +17,7 @@ type headers struct {
 	currentPacketNumber int64
 	totalLength         uint64
 	finalPacket         string
+	encoding            Encoding
 }
 
 func (h headers) set(msg *wrp.Message) {
@@ -42,6 +34,9 @@ func (h headers) set(msg *wrp.Message) {
 	}
 	if h.finalPacket != "" {
 		setS(msg, stream_final_packet, h.finalPacket)
+	}
+	if !h.encoding.Is(EncodingIdentity) {
+		setS(msg, stream_encoding, string(h.encoding))
 	}
 }
 
@@ -83,6 +78,16 @@ func get(msg *wrp.Message) (headers, error) {
 				value = "EOF"
 			}
 			h.finalPacket = value
+		case stream_encoding:
+			switch value {
+			case "":
+				h.encoding = EncodingIdentity
+			case "gzip", "deflate", "identity":
+				h.encoding = Encoding(value)
+			default:
+				return headers{}, fmt.Errorf("%w: %s is not a valid encoding", ErrInvalidInput, value)
+			}
+
 		}
 	}
 
@@ -94,7 +99,7 @@ func get(msg *wrp.Message) (headers, error) {
 }
 
 func isSSP(msg *wrp.Message) bool {
-	if msg.MessageType() == wrp.SimpleEventMessageType {
+	if msg.MsgType() == wrp.SimpleEventMessageType {
 		for _, header := range msg.Headers {
 			header = strings.TrimSpace(header)
 			header = strings.ToLower(header)
@@ -159,6 +164,7 @@ var headerList = []string{
 	stream_packet_number,
 	stream_estimated_length,
 	stream_final_packet,
+	stream_encoding,
 }
 
 func clearExisting(msg *wrp.Message) {

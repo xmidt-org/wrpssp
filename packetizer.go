@@ -8,7 +8,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/xmidt-org/wrp-go/v3"
+	"github.com/xmidt-org/wrp-go/v5"
 )
 
 // Packetizer is a struct that reads from a stream and populates a stream of

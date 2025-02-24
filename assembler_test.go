@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/xmidt-org/wrp-go/v3"
+	"github.com/xmidt-org/wrp-go/v5"
 )
 
 func TestAssembler_Read(t *testing.T) {
@@ -59,7 +59,7 @@ func TestAssembler_Read(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assembler := Assembler{}
 			if tt.blocks != nil {
-				assembler.blocks = tt.blocks
+				assembler.packets = tt.blocks
 			}
 
 			buf := make([]byte, tt.bufSize)
@@ -87,7 +87,7 @@ func TestAssembler_Read(t *testing.T) {
 
 func TestAssembler_Close(t *testing.T) {
 	assembler := &Assembler{
-		blocks: map[uint64]block{
+		packets: map[uint64]block{
 			1: {headers: headers{finalPacket: "EOF"}, payload: []byte("Hello")},
 		},
 	}
@@ -151,7 +151,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 		}, {
 			name: "invalid message type",
 			assembler: &Assembler{
-				blocks: make(map[uint64]block),
+				packets: make(map[uint64]block),
 			},
 			msg: wrp.Message{
 				Type:    wrp.SimpleRequestResponseMessageType,
@@ -163,7 +163,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 		}, {
 			name: "no message number",
 			assembler: &Assembler{
-				blocks: make(map[uint64]block),
+				packets: make(map[uint64]block),
 			},
 			msg: wrp.Message{
 				Type:    wrp.SimpleEventMessageType,
@@ -175,8 +175,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 		}, {
 			name: "closed assembler",
 			assembler: &Assembler{
-				closed: true,
-				blocks: make(map[uint64]block),
+				closed:  true,
+				packets: make(map[uint64]block),
 			},
 			msg: wrp.Message{
 				Type:    wrp.SimpleEventMessageType,
@@ -188,7 +188,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 		}, {
 			name: "duplicate packet",
 			assembler: &Assembler{
-				blocks: map[uint64]block{
+				packets: map[uint64]block{
 					0: {
 						headers: headers{
 							id:                  "1",
@@ -217,7 +217,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 			name: "late duplicate packet",
 			assembler: &Assembler{
 				current: 4,
-				blocks: map[uint64]block{
+				packets: map[uint64]block{
 					4: {
 						headers: headers{
 							id:                  "1",
@@ -245,7 +245,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 		}, {
 			name: "invalid packet",
 			assembler: &Assembler{
-				blocks: map[uint64]block{
+				packets: map[uint64]block{
 					0: {
 						headers: headers{
 							id:                  "1",
@@ -278,7 +278,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 			ctx := context.Background()
 			err := tt.assembler.ProcessWRP(ctx, tt.msg)
 			assert.ErrorIs(t, err, tt.err)
-			assert.Equal(t, tt.expected, tt.assembler.blocks)
+			assert.Equal(t, tt.expected, tt.assembler.packets)
 		})
 	}
 }
