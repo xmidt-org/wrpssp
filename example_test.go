@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/xmidt-org/wrp-go/v5"
 	wrpssp "github.com/xmidt-org/wrpssp"
 )
 
@@ -21,6 +22,10 @@ func Example() {
 		// Split the string into 5 byte packets for the example or there would
 		// only be one packet.  Normally this would be a much larger number.
 		wrpssp.MaxPacketSize(5),
+
+		// Normally this would be EncodingGzip, but for the example we are using
+		// EncodingIdentity so that the packets are not compressed.
+		wrpssp.WithEncoding(wrpssp.EncodingIdentity),
 	)
 
 	assembler := wrpssp.Assembler{}
@@ -30,7 +35,10 @@ func Example() {
 		// This is a pretty safe way to handle the packetizer.  If the packetizer
 		// returns a msg, it should be sent.  The error might be interesting,
 		// but it doesn't change what should be sent.
-		msg, _ := packer.Next(ctx)
+		msg, _ := packer.Next(ctx, wrp.SimpleEvent{
+			Source:      "self:",
+			Destination: "event:foo",
+		})
 
 		// Normally the message would have source, destination, and content type set
 		// but for this example we are only interested in the payload, so there
