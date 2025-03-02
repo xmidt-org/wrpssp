@@ -4,6 +4,8 @@
 package wrpssp
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +16,7 @@ func TestSimpleStreamingMessage_From(t *testing.T) {
 	tests := []struct {
 		name    string
 		msg     wrp.Message
-		wantSSM SimpleStreamingMessage
+		wantSSM simpleStreamingMessage
 		wantErr error
 	}{
 		{
@@ -33,7 +35,7 @@ func TestSimpleStreamingMessage_From(t *testing.T) {
 					"header with no colon",
 				},
 			},
-			wantSSM: SimpleStreamingMessage{
+			wantSSM: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source:      "self:/service",
 					Destination: "event:foo",
@@ -54,7 +56,7 @@ func TestSimpleStreamingMessage_From(t *testing.T) {
 			msg: wrp.Message{
 				Type: wrp.SimpleRequestResponseMessageType,
 			},
-			wantSSM: SimpleStreamingMessage{},
+			wantSSM: simpleStreamingMessage{},
 			wantErr: wrp.ErrInvalidMessageType,
 		}, {
 			name: "Invalid SSP Headers, missing stream-id",
@@ -86,7 +88,7 @@ func TestSimpleStreamingMessage_From(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var ssm SimpleStreamingMessage
+			var ssm simpleStreamingMessage
 			err := ssm.From(&tt.msg)
 
 			if err == nil {
@@ -105,7 +107,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 	tests := []struct {
 		name    string
 		headers map[string]string
-		want    SimpleStreamingMessage
+		want    simpleStreamingMessage
 		err     error
 	}{
 		{
@@ -117,7 +119,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 				stream_final_packet:     "eof",
 				stream_encoding:         "gzip",
 			},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamID:              "test-stream-id",
 				StreamPacketNumber:    1,
 				StreamEstimatedLength: 100,
@@ -131,7 +133,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 				stream_packet_number:    "0000",
 				stream_estimated_length: "0000100",
 			},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamPacketNumber:    0,
 				StreamEstimatedLength: 100,
 			},
@@ -139,7 +141,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 		}, {
 			name:    "Validate invalid/default values",
 			headers: map[string]string{},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamID:              "",
 				StreamPacketNumber:    -1,
 				StreamEstimatedLength: 0,
@@ -151,7 +153,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 			headers: map[string]string{
 				stream_final_packet: "Somthing Else",
 			},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamPacketNumber: -1,
 				StreamFinalPacket:  "Somthing Else",
 			},
@@ -160,7 +162,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 			headers: map[string]string{
 				stream_estimated_length: "",
 			},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamPacketNumber:    -1,
 				StreamEstimatedLength: 0,
 			},
@@ -169,7 +171,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 			headers: map[string]string{
 				stream_packet_number: "",
 			},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamPacketNumber: -1,
 			},
 		}, {
@@ -177,7 +179,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 			headers: map[string]string{
 				stream_final_packet: "EOF",
 			},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamPacketNumber: -1,
 				StreamFinalPacket:  "eof",
 			},
@@ -186,7 +188,7 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 			headers: map[string]string{
 				stream_packet_number: "-12",
 			},
-			want: SimpleStreamingMessage{
+			want: simpleStreamingMessage{
 				StreamPacketNumber: -12,
 			},
 		}, {
@@ -194,42 +196,42 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 			headers: map[string]string{
 				stream_packet_number: "invalid",
 			},
-			want: SimpleStreamingMessage{},
+			want: simpleStreamingMessage{},
 			err:  ErrInvalidInput,
 		}, {
 			name: "Invalid StreamPacketNumber, float",
 			headers: map[string]string{
 				stream_packet_number: "12.2",
 			},
-			want: SimpleStreamingMessage{},
+			want: simpleStreamingMessage{},
 			err:  ErrInvalidInput,
 		}, {
 			name: "Invalid StreamEstimatedLength",
 			headers: map[string]string{
 				stream_estimated_length: "invalid",
 			},
-			want: SimpleStreamingMessage{},
+			want: simpleStreamingMessage{},
 			err:  ErrInvalidInput,
 		}, {
 			name: "Invalid StreamEstimatedLength, float",
 			headers: map[string]string{
 				stream_estimated_length: "12.2",
 			},
-			want: SimpleStreamingMessage{},
+			want: simpleStreamingMessage{},
 			err:  ErrInvalidInput,
 		}, {
 			name: "Invalid StreamEstimatedLength, negative",
 			headers: map[string]string{
 				stream_estimated_length: "-12",
 			},
-			want: SimpleStreamingMessage{},
+			want: simpleStreamingMessage{},
 			err:  ErrInvalidInput,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var ssm SimpleStreamingMessage
+			var ssm simpleStreamingMessage
 			err := ssm.from(tt.headers)
 
 			if tt.err == nil {
@@ -247,13 +249,13 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 func TestSimpleStreamingMessage_To(t *testing.T) {
 	tests := []struct {
 		name    string
-		ssm     SimpleStreamingMessage
+		ssm     simpleStreamingMessage
 		wantMsg wrp.Message
 		wantErr error
 	}{
 		{
 			name: "Valid SSP Message",
-			ssm: SimpleStreamingMessage{
+			ssm: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source:      "self:/service",
 					Destination: "event:foo",
@@ -293,13 +295,13 @@ func TestSimpleStreamingMessage_To(t *testing.T) {
 func TestSimpleStreamingMessage_Validate(t *testing.T) {
 	tests := []struct {
 		name       string
-		ssm        SimpleStreamingMessage
+		ssm        simpleStreamingMessage
 		validators []wrp.Processor
 		wantErr    error
 	}{
 		{
 			name: "Valid SSP Message",
-			ssm: SimpleStreamingMessage{
+			ssm: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source:      "self:/service",
 					Destination: "event:foo",
@@ -313,7 +315,7 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			wantErr: nil,
 		}, {
 			name: "Missing StreamID",
-			ssm: SimpleStreamingMessage{
+			ssm: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source:      "self:/service",
 					Destination: "event:foo",
@@ -326,7 +328,7 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			wantErr: ErrInvalidInput,
 		}, {
 			name: "Negative StreamPacketNumber",
-			ssm: SimpleStreamingMessage{
+			ssm: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source:      "self:/service",
 					Destination: "event:foo",
@@ -340,7 +342,7 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			wantErr: ErrInvalidInput,
 		}, {
 			name: "Invalid StreamEncoding",
-			ssm: SimpleStreamingMessage{
+			ssm: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source:      "self:/service",
 					Destination: "event:foo",
@@ -354,7 +356,7 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			wantErr: ErrInvalidInput,
 		}, {
 			name: "Invalid SimpleEvent - missing Destination",
-			ssm: SimpleStreamingMessage{
+			ssm: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source: "self:/service",
 				},
@@ -364,7 +366,7 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			wantErr: wrp.ErrMessageIsInvalid,
 		}, {
 			name: "Invalid SimpleEvent - missing Destination",
-			ssm: SimpleStreamingMessage{
+			ssm: simpleStreamingMessage{
 				SimpleEvent: wrp.SimpleEvent{
 					Source: "self:/service",
 				},
@@ -384,7 +386,7 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 }
 
 func TestSimpleStreamingMsgType(t *testing.T) {
-	ssm := SimpleStreamingMessage{}
+	ssm := simpleStreamingMessage{}
 	assert.Equal(t, wrp.SimpleEventMessageType, ssm.MsgType())
 }
 
@@ -419,7 +421,7 @@ func TestEncodingIsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.e.IsValid())
+			assert.Equal(t, tt.want, tt.e.isValid())
 		})
 	}
 }
@@ -471,7 +473,126 @@ func TestEncodingIs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.e.Is(tt.is))
+			assert.Equal(t, tt.want, tt.e.is(tt.is))
+		})
+	}
+}
+
+func TestMessageIs(t *testing.T) {
+	tests := []struct {
+		name     string
+		msg      wrp.Union
+		expected bool
+	}{
+		{
+			name: "SimpleStreamingMessage",
+			msg: &simpleStreamingMessage{
+				StreamID: "test-stream-id",
+			},
+			expected: true,
+		},
+		{
+			name: "Valid SimpleEvent with Headers",
+			msg: &wrp.SimpleEvent{
+				Headers: []string{"stream-id: test-stream-id"},
+			},
+			expected: true,
+		},
+		{
+			name: "Valid SimpleEvent without Headers",
+			msg: &wrp.SimpleEvent{
+				Headers: []string{},
+			},
+			expected: false,
+		},
+		{
+			name: "Invalid Message Type",
+			msg: &wrp.SimpleRequestResponse{
+				Headers: []string{"stream-id: test-stream-id"},
+			},
+			expected: false,
+		},
+		{
+			name:     "Nil Message",
+			msg:      nil,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ssm simpleStreamingMessage
+			result := ssm.Is(tt.msg)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetStreamID(t *testing.T) {
+	someErr := fmt.Errorf("some error")
+	tests := []struct {
+		name    string
+		msg     wrp.Message
+		wantID  string
+		wantErr error
+	}{
+		{
+			name: "Valid SSP Message",
+			msg: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
+				Source:      "mac:112233445566",
+				Destination: "event:status/mac:112233445566",
+				Headers: []string{
+					"stream-id:Test-Stream-Id",
+					"stream-packet-number:0",
+				},
+			},
+			wantID: "Test-Stream-Id",
+		}, {
+			name: "Non-SSP Message",
+			msg: wrp.Message{
+				Type:        wrp.SimpleRequestResponseMessageType,
+				Source:      "mac:112233445566",
+				Destination: "event:status/mac:112233445566",
+			},
+			wantErr: wrp.ErrNotHandled,
+		}, {
+			name: "A SSP message without the stream-pack-number is ok",
+			msg: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
+				Source:      "mac:112233445566",
+				Destination: "event:status/mac:112233445566",
+				Headers: []string{
+					"stream-id:Test-Stream-Id",
+				},
+			},
+			wantID: "Test-Stream-Id",
+		}, {
+			name: "SSP Message Without Stream ID",
+			msg: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
+				Source:      "mac:112233445566",
+				Destination: "event:status/mac:112233445566",
+			},
+			wantErr: wrp.ErrNotHandled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotID, err := GetStreamID(tt.msg)
+
+			if tt.wantErr != nil {
+				assert.Error(t, err)
+				if !errors.Is(tt.wantErr, someErr) {
+					assert.ErrorIs(t, err, tt.wantErr)
+				}
+				assert.Empty(t, gotID)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantID, gotID)
 		})
 	}
 }

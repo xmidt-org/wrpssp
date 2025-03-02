@@ -24,22 +24,22 @@ func (f optionFunc) apply(file *Packetizer) error {
 // only [A-Za-z0-9 !#$&'()*+,./:;=?@[\]~_-].  This is a required field.
 func ID(id string) Option {
 	return optionFunc(func(s *Packetizer) error {
-		s.headers.id = id
+		s.id = id
 		return nil
 	})
 }
 
-// ReaderLength sets the estimated length of the stream.  This is optional.
+// EstimatedLength sets the estimated length of the stream.  This is optional.
 // If the size is less than 1, the default value of 0 is used.
 //
 // This field is used to help the receiver determine the progress of the stream
 // if it is a fixed length.
-func ReaderLength(size int64) Option {
+func EstimatedLength(size int64) Option {
 	return optionFunc(func(s *Packetizer) error {
 		if size < 1 {
 			size = 0
 		}
-		s.headers.totalLength = uint64(size)
+		s.estimatedSize = uint64(size)
 		return nil
 	})
 }
@@ -48,7 +48,6 @@ func ReaderLength(size int64) Option {
 func Reader(r io.Reader) Option {
 	return optionFunc(func(s *Packetizer) error {
 		s.stream = r
-		s.headers.totalLength = 0
 		return nil
 	})
 }
@@ -65,6 +64,15 @@ func MaxPacketSize(size int) Option {
 	})
 }
 
+// WithEncoding sets the encoding of the stream.  This is optional.  If the encoding
+// is not set, the default value of EncodingGzip is used.
+func WithEncoding(e Encoding) Option {
+	return optionFunc(func(s *Packetizer) error {
+		s.encoding = e
+		return nil
+	})
+}
+
 // validate ensures that the stream is valid before returning it.
 func finalize() Option {
 	return optionFunc(func(s *Packetizer) error {
@@ -72,13 +80,17 @@ func finalize() Option {
 			return fmt.Errorf("%w: stream must not be nil", ErrInvalidInput)
 		}
 
-		if s.headers.id == "" {
+		if s.id == "" {
 			return fmt.Errorf("%w: id must not be empty", ErrInvalidInput)
 		}
 
 		re := regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-		if !re.MatchString(s.headers.id) {
+		if !re.MatchString(s.id) {
 			return fmt.Errorf("%w: id contains invalid characters", ErrInvalidInput)
+		}
+
+		if !s.encoding.isValid() {
+			return fmt.Errorf("%w: encoding is invalid", ErrInvalidInput)
 		}
 
 		return nil

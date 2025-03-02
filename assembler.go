@@ -19,11 +19,18 @@ import (
 // interface.
 type Assembler struct {
 	closed  bool
-	current uint64
+	current int64
 	final   string
 	offset  int
-	packets map[uint64]*SimpleStreamingMessage
+	packets map[int64]*simpleStreamingMessage
 	m       sync.Mutex
+
+	decoded *decoded
+}
+
+type decoded struct {
+	number int64
+	data   []byte
 }
 
 var _ io.ReadCloser = (*Assembler)(nil)
@@ -33,7 +40,14 @@ func (a *Assembler) Read(p []byte) (int, error) {
 	a.m.Lock()
 	defer a.m.Unlock()
 
-	packet, found := a.getPacket(a.current)
+	packet, buf, found, err := a.getPacket(a.current)
+	if err != nil {
+		// There was a decoding error, so the Assembler should be closed.
+		a.final = err.Error()
+		a.close()
+		return 0, err
+	}
+
 	if !found {
 		err := a.getFinalState()
 		if err != nil {
@@ -46,30 +60,52 @@ func (a *Assembler) Read(p []byte) (int, error) {
 		a.final = strings.TrimSpace(packet.StreamFinalPacket)
 	}
 
-	n := copy(p, packet.SimpleEvent.Payload[a.offset:])
+	n := copy(p, buf[a.offset:])
 	a.offset += n
 
-	if a.offset >= len(packet.SimpleEvent.Payload) {
+	if a.offset >= len(buf) {
 		delete(a.packets, a.current)
 
 		a.current++
+		a.decoded = nil
 		a.offset = 0
 	}
 
-	err := a.getFinalState()
+	err = a.getFinalState()
 	if err != nil {
 		a.close()
 	}
 	return n, err
 }
 
-func (a *Assembler) getPacket(n uint64) (*SimpleStreamingMessage, bool) {
+func (a *Assembler) getPacket(n int64) (*simpleStreamingMessage, []byte, bool, error) {
 	if a.packets == nil {
-		return &SimpleStreamingMessage{}, false
+		return &simpleStreamingMessage{}, nil, false, nil
 	}
 
-	b, found := a.packets[n]
-	return b, found
+	msg, found := a.packets[n]
+	if !found {
+		return nil, nil, false, nil
+	}
+
+	// We have the decoded packet already, so it can be returned.
+	if a.decoded != nil && a.decoded.number == n {
+		return msg, a.decoded.data, true, nil
+	}
+
+	if a.decoded == nil {
+		a.decoded = &decoded{}
+	}
+
+	var err error
+	a.decoded.data, err = msg.StreamEncoding.decode(msg.Payload)
+	if err != nil {
+		a.decoded = nil
+		return nil, nil, true, err
+	}
+	a.decoded.number = n
+
+	return msg, a.decoded.data, true, err
 }
 
 func (a *Assembler) getFinalState() error {
@@ -96,6 +132,7 @@ func (a *Assembler) Close() error {
 
 func (a *Assembler) close() {
 	a.packets = nil
+	a.decoded = nil
 	a.closed = true
 }
 
@@ -103,16 +140,12 @@ func (a *Assembler) close() {
 // message, it is ignored.  If the message is an SSP message, it is processed.
 // The context is not used, but is required by the wrp.Processor interface.
 func (a *Assembler) ProcessWRP(_ context.Context, msg wrp.Message) error {
-	var ssp SimpleStreamingMessage
-	if err := ssp.From(&msg); err != nil {
-		return err
-	}
-	if !isSSP(&msg) {
+	if !Is(&msg) {
 		return wrp.ErrNotHandled
 	}
 
-	h, err := get(&msg)
-	if err != nil {
+	var ssp simpleStreamingMessage
+	if err := ssp.From(&msg); err != nil {
 		return err
 	}
 
@@ -124,37 +157,20 @@ func (a *Assembler) ProcessWRP(_ context.Context, msg wrp.Message) error {
 	}
 
 	// We're past the current packet, so it can be dropped.
-	if a.current > uint64(h.currentPacketNumber) {
+	if a.current > ssp.StreamPacketNumber {
 		return nil
 	}
 
 	if a.packets == nil {
-		a.packets = make(map[uint64]block)
+		a.packets = make(map[int64]*simpleStreamingMessage)
 	}
 
 	// We have the current packet already, so it can be dropped.
-	if _, found := a.packets[uint64(h.currentPacketNumber)]; found {
+	if _, found := a.packets[ssp.StreamPacketNumber]; found {
 		return nil
 	}
 
-	a.packets[uint64(h.currentPacketNumber)] = block{
-		headers: h,
-		payload: msg.Payload,
-	}
+	a.packets[ssp.StreamPacketNumber] = &ssp
 
 	return nil
-}
-
-// GetStreamID returns the stream ID of the message if it is an SSP message.
-func GetStreamID(msg wrp.Message) (string, error) {
-	if !isSSP(&msg) {
-		return "", wrp.ErrNotHandled
-	}
-
-	h, err := get(&msg)
-	if err != nil {
-		return "", err
-	}
-
-	return h.id, nil
 }

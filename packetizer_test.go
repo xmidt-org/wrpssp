@@ -27,14 +27,12 @@ func TestNew(t *testing.T) {
 			opts: []Option{
 				ID("123"),
 				Reader(bytes.NewReader([]byte("HelloWorld"))),
-				ReaderLength(10),
+				EstimatedLength(10),
 				MaxPacketSize(5),
 			},
 			expected: &Packetizer{
-				headers: headers{
-					id:          "123",
-					totalLength: 10,
-				},
+				id:            "123",
+				estimatedSize: 10,
 				stream:        bytes.NewReader([]byte("HelloWorld")),
 				maxPacketSize: 5,
 			},
@@ -58,7 +56,16 @@ func TestNew(t *testing.T) {
 			name: "nil stream",
 			opts: []Option{
 				ID("123"),
-				ReaderLength(10),
+				EstimatedLength(10),
+			},
+			expected: nil,
+			err:      ErrInvalidInput,
+		}, {
+			name: "invalid encoding",
+			opts: []Option{
+				ID("123"),
+				Reader(bytes.NewReader([]byte("HelloWorld"))),
+				WithEncoding("invalid"),
 			},
 			expected: nil,
 			err:      ErrInvalidInput,
@@ -67,14 +74,12 @@ func TestNew(t *testing.T) {
 			opts: []Option{
 				ID("123"),
 				Reader(bytes.NewReader([]byte("HelloWorld"))),
-				ReaderLength(10),
+				EstimatedLength(10),
 				MaxPacketSize(0),
 			},
 			expected: &Packetizer{
-				headers: headers{
-					id:          "123",
-					totalLength: 10,
-				},
+				id:            "123",
+				estimatedSize: 10,
 				stream:        bytes.NewReader([]byte("HelloWorld")),
 				maxPacketSize: 64 * 1024,
 			},
@@ -89,8 +94,8 @@ func TestNew(t *testing.T) {
 				assert.True(t, errors.Is(err, tt.err))
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expected.headers.id, p.headers.id)
-				assert.Equal(t, tt.expected.headers.totalLength, p.headers.totalLength)
+				assert.Equal(t, tt.expected.id, p.id)
+				assert.Equal(t, tt.expected.estimatedSize, p.estimatedSize)
 				assert.Equal(t, tt.expected.maxPacketSize, p.maxPacketSize)
 				assert.NotNil(t, p.stream)
 			}
@@ -99,24 +104,35 @@ func TestNew(t *testing.T) {
 }
 
 func TestPacketizer_Next(t *testing.T) {
+	errUnknown := errors.New("unknown error")
+
 	tests := []struct {
-		name     string
-		opts     []Option
-		expected []wrp.Message
-		extra    bool
-		err      error
+		name       string
+		opts       []Option
+		in         wrp.SimpleEvent
+		expected   []wrp.Message
+		packetizer *Packetizer // not used except for very specific tests
+		extra      bool
+		err        error
 	}{
 		{
 			name: "valid next packet",
 			opts: []Option{
 				ID("123"),
 				Reader(bytes.NewReader([]byte("HelloWorld"))),
-				ReaderLength(10),
+				EstimatedLength(10),
 				MaxPacketSize(5),
+				WithEncoding(EncodingIdentity),
+			},
+			in: wrp.SimpleEvent{
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
 			},
 			expected: []wrp.Message{
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 0",
@@ -125,7 +141,9 @@ func TestPacketizer_Next(t *testing.T) {
 					Payload: []byte("Hello"),
 				},
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 1",
@@ -134,12 +152,14 @@ func TestPacketizer_Next(t *testing.T) {
 					Payload: []byte("World"),
 				},
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 2",
 						"stream-estimated-total-length: 10",
-						"stream-final-packet: EOF",
+						"stream-final-packet: eof",
 					},
 				},
 			},
@@ -150,10 +170,17 @@ func TestPacketizer_Next(t *testing.T) {
 				ID("123"),
 				Reader(bytes.NewReader([]byte("HelloWorld"))),
 				MaxPacketSize(5),
+				WithEncoding(EncodingIdentity),
+			},
+			in: wrp.SimpleEvent{
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
 			},
 			expected: []wrp.Message{
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 0",
@@ -161,7 +188,9 @@ func TestPacketizer_Next(t *testing.T) {
 					Payload: []byte("Hello"),
 				},
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 1",
@@ -169,11 +198,13 @@ func TestPacketizer_Next(t *testing.T) {
 					Payload: []byte("World"),
 				},
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 2",
-						"stream-final-packet: EOF",
+						"stream-final-packet: eof",
 					},
 				},
 			},
@@ -183,12 +214,19 @@ func TestPacketizer_Next(t *testing.T) {
 			opts: []Option{
 				ID("123"),
 				Reader(bytes.NewReader([]byte("HelloWorld"))),
-				ReaderLength(20),
+				EstimatedLength(20),
 				MaxPacketSize(6),
+				WithEncoding(EncodingIdentity),
+			},
+			in: wrp.SimpleEvent{
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
 			},
 			expected: []wrp.Message{
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 0",
@@ -197,7 +235,9 @@ func TestPacketizer_Next(t *testing.T) {
 					Payload: []byte("HelloW"),
 				},
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 1",
@@ -206,12 +246,14 @@ func TestPacketizer_Next(t *testing.T) {
 					Payload: []byte("orld"),
 				},
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 2",
 						"stream-estimated-total-length: 20",
-						"stream-final-packet: EOF",
+						"stream-final-packet: eof",
 					},
 				},
 			},
@@ -221,12 +263,19 @@ func TestPacketizer_Next(t *testing.T) {
 			opts: []Option{
 				ID("123"),
 				Reader(bytes.NewReader([]byte("HelloWorld"))),
-				ReaderLength(20),
+				EstimatedLength(20),
 				MaxPacketSize(6),
+				WithEncoding(EncodingIdentity),
+			},
+			in: wrp.SimpleEvent{
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
 			},
 			expected: []wrp.Message{
 				{
-					Type: wrp.SimpleEventMessageType,
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
 					Headers: []string{
 						"stream-id: 123",
 						"stream-packet-number: 0",
@@ -245,8 +294,13 @@ func TestPacketizer_Next(t *testing.T) {
 						Reader: bytes.NewReader([]byte("HelloWorld")),
 						when:   7,
 					}),
-				ReaderLength(20),
+				EstimatedLength(20),
 				MaxPacketSize(6),
+				WithEncoding(EncodingIdentity),
+			},
+			in: wrp.SimpleEvent{
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
 			},
 			expected: []wrp.Message{
 				{
@@ -271,6 +325,43 @@ func TestPacketizer_Next(t *testing.T) {
 			err:   io.ErrUnexpectedEOF,
 			extra: true,
 		},
+		{
+			name: "invalid wrp.SimpleEvent",
+			opts: []Option{
+				ID("123"),
+				Reader(
+					&faultyReader{
+						Reader: bytes.NewReader([]byte("HelloWorld")),
+						when:   7,
+					}),
+				EstimatedLength(20),
+				MaxPacketSize(6),
+				WithEncoding(EncodingIdentity),
+			},
+			in: wrp.SimpleEvent{
+				Source: "mac:112233445566",
+				// Missing Destination
+			},
+			err:   wrp.ErrMessageIsInvalid,
+			extra: true,
+		}, {
+			name: "simulated encoding error via invalid encoder",
+			packetizer: func() *Packetizer {
+				p, err := New(
+					ID("123"),
+					Reader(bytes.NewReader([]byte("HelloWorld"))))
+				require.NoError(t, err)
+				require.NotNil(t, p)
+				p.encoding = "invalid"
+				return p
+			}(),
+			in: wrp.SimpleEvent{
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
+			},
+			err:   errUnknown,
+			extra: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -282,29 +373,46 @@ func TestPacketizer_Next(t *testing.T) {
 				cancel()
 			}
 
-			packetizer, err := New(tt.opts...)
-			require.Nil(t, err)
-			require.NotNil(t, packetizer)
+			var packetizer *Packetizer
+
+			if tt.packetizer != nil {
+				packetizer = tt.packetizer
+			} else {
+				var err error
+				packetizer, err = New(tt.opts...)
+				require.Nil(t, err)
+				require.NotNil(t, packetizer)
+			}
 
 			for i, expected := range tt.expected {
-				got, err := packetizer.Next(ctx)
+				got, err := packetizer.Next(ctx, tt.in)
 
 				assert.NotEmpty(t, got)
-				assert.Equal(t, expected.Type, got.Type)
 				assert.Equal(t, expected.Headers, got.Headers)
 				assert.Equal(t, expected.Payload, got.Payload)
 
 				if i < len(tt.expected)-1 {
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 					continue
 				}
-				assert.ErrorIs(t, err, tt.err)
+
+				if tt.err == nil {
+					assert.NoError(t, err)
+				} else {
+					assert.Error(t, err)
+					if !errors.Is(tt.err, errUnknown) {
+						assert.ErrorIs(t, err, tt.err)
+					}
+				}
 			}
 
 			if tt.extra {
-				got, err := packetizer.Next(ctx)
+				got, err := packetizer.Next(ctx, tt.in)
 				assert.Empty(t, got)
-				assert.ErrorIs(t, err, tt.err)
+				assert.Error(t, err)
+				if !errors.Is(tt.err, errUnknown) {
+					assert.ErrorIs(t, err, tt.err)
+				}
 			}
 		})
 	}

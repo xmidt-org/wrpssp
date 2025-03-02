@@ -15,8 +15,8 @@ github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOf
 github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/tinylib/msgp v1.2.5 h1:WeQg1whrXRFiZusidTQqzETkRpGjFjcIhW6uqWH09po=
 github.com/tinylib/msgp v1.2.5/go.mod h1:ykjzy2wzgrlvpDCRc4LA8UXy6D8bzMSuAF3WD57Gok0=
-github.com/xmidt-org/wrp-go/v5 v5.1.0 h1:rEwTxuFGn22wmTxM6JFLQ/PVzNBDF8Dkfwl3JDo2+kg=
-github.com/xmidt-org/wrp-go/v5 v5.1.0/go.mod h1:SSKOeBzyaIGexrhrL+4iZhngm8LCOgxeV3uiZHulj5I=
+github.com/xmidt-org/wrp-go/v5 v5.2.0 h1:I3M8cYGUZ0fCvF0QU0jssqp1Elbnd9/jWPOo/UBUbGk=
+github.com/xmidt-org/wrp-go/v5 v5.2.0/go.mod h1:SSKOeBzyaIGexrhrL+4iZhngm8LCOgxeV3uiZHulj5I=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=

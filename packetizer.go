@@ -14,19 +14,25 @@ import (
 // Packetizer is a struct that reads from a stream and populates a stream of
 // WRP messages.
 type Packetizer struct {
-	headers       headers
-	stream        io.Reader
-	maxPacketSize int
-	outcome       error
+	stream              io.Reader
+	id                  string
+	currentPacketNumber int64
+	maxPacketSize       int
+	encoding            Encoding
+	estimatedSize       uint64
+	finalPacket         string
+	outcome             error
 }
 
-// New creates a new Packetizer with the given options.
+// New creates a new Packetizer with the given options.  Similar to io.Reader and
+// io.Writer, the Packetizer is not safe for concurrent use.
 func New(opts ...Option) (*Packetizer, error) {
 	var file Packetizer
 
 	defaults := []Option{
 		MaxPacketSize(0),
-		ReaderLength(0),
+		EstimatedLength(0),
+		WithEncoding(EncodingGzip),
 	}
 
 	vadors := []Option{
@@ -45,13 +51,28 @@ func New(opts ...Option) (*Packetizer, error) {
 	return &file, nil
 }
 
-// Next reads from the stream and populates the given WRP message.  The function
-// will return the populated WRP message or an error.  The error io.EOF will
-// be returned when the stream is exhausted.  Other errors may be returned if
-// those are encountered during the processing.
-func (p *Packetizer) Next(ctx context.Context) (wrp.Message, error) {
+// Next reads from the byte stream and populates the provided WRP message struct
+// with a new payload and additional SSP headers.  The function will return the
+// populated WRP message or an error.  The error io.EOF will be returned when
+// the stream is exhausted.  Other errors may be returned if those are
+// encountered during the processing.
+func (p *Packetizer) Next(ctx context.Context, msg wrp.SimpleEvent) (wrp.Message, error) {
+	ssm, err := p.nextRaw(ctx, msg)
+	if ssm == nil {
+		return wrp.Message{}, err
+	}
+
+	var out wrp.Message
+	if err := ssm.To(&out); err != nil {
+		return wrp.Message{}, err
+	}
+
+	return out, err
+}
+
+func (p *Packetizer) nextRaw(ctx context.Context, msg ...wrp.SimpleEvent) (*simpleStreamingMessage, error) {
 	if p.outcome != nil {
-		return wrp.Message{}, p.outcome
+		return nil, p.outcome
 	}
 
 	buf := make([]byte, p.maxPacketSize)
@@ -61,32 +82,43 @@ func (p *Packetizer) Next(ctx context.Context) (wrp.Message, error) {
 		select {
 		case <-ctx.Done():
 			err = ctx.Err()
-			p.headers.finalPacket = err.Error()
+			p.finalPacket = err.Error()
 		default:
 			n, err = p.stream.Read(buf)
 		}
 	}
 
-	msg := wrp.Message{
-		Type: wrp.SimpleEventMessageType,
-	}
-
-	if n > 0 {
-		msg.Payload = buf[:n]
-	}
-
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			p.headers.finalPacket = "EOF"
+			p.finalPacket = "EOF"
 		} else {
-			p.headers.finalPacket = err.Error()
+			p.finalPacket = err.Error()
 		}
 		p.outcome = err
 	}
 
-	p.headers.set(&msg)
+	var out simpleStreamingMessage
 
-	p.headers.currentPacketNumber++
+	if len(msg) > 0 {
+		out.SimpleEvent = msg[0]
+	}
 
-	return msg, err
+	out.Payload = nil
+	if n > 0 {
+		out.Payload, err = p.encoding.encode(buf[:n])
+		if err != nil {
+			p.finalPacket = err.Error()
+			p.outcome = err
+		}
+	}
+
+	out.StreamID = p.id
+	out.StreamPacketNumber = p.currentPacketNumber
+	out.StreamEstimatedLength = p.estimatedSize
+	out.StreamFinalPacket = p.finalPacket
+	out.StreamEncoding = p.encoding
+
+	p.currentPacketNumber++
+
+	return &out, p.outcome
 }

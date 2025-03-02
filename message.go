@@ -20,32 +20,10 @@ const (
 	stream_encoding         = "stream-encoding"
 )
 
-const (
-	EncodingIdentity Encoding = "identity"
-	EncodingGzip     Encoding = "gzip"
-	EncodingDeflate  Encoding = "deflate"
-)
-
-type Encoding string
-
-func (e Encoding) IsValid() bool {
-	switch e {
-	case "", EncodingIdentity, EncodingGzip, EncodingDeflate:
-		return true
-	default:
-		return false
-	}
-}
-
-func (e Encoding) Is(want Encoding) bool {
-	if want == EncodingIdentity {
-		return e == "" || e == EncodingIdentity
-	}
-
-	return e == want && e.IsValid()
-}
-
-type SimpleStreamingMessage struct {
+// simpleStreamingMessage is a WRP message that contains the necessary fields
+// and methods to support streaming.  Normal interactions with this message
+// should be through the Packetizer and Assember interfaces in this package.
+type simpleStreamingMessage struct {
 	wrp.SimpleEvent
 	StreamID              string
 	StreamPacketNumber    int64
@@ -54,16 +32,20 @@ type SimpleStreamingMessage struct {
 	StreamEncoding        Encoding
 }
 
-var _ wrp.Union = &SimpleStreamingMessage{}
+var _ wrp.Union = &simpleStreamingMessage{}
 
-func (ssm *SimpleStreamingMessage) From(msg *wrp.Message, validators ...wrp.Processor) error {
+func (ssm *simpleStreamingMessage) From(msg *wrp.Message, validators ...wrp.Processor) error {
 	err := ssm.SimpleEvent.From(msg, wrp.NoStandardValidation())
 	if err != nil {
 		return err
 	}
 
 	mine, others := split(msg.Headers)
-	ssm.SimpleEvent.Headers = others
+	if len(others) == 0 {
+		ssm.Headers = nil
+	} else {
+		ssm.Headers = others
+	}
 	if err := ssm.from(mine); err != nil {
 		return err
 	}
@@ -71,11 +53,11 @@ func (ssm *SimpleStreamingMessage) From(msg *wrp.Message, validators ...wrp.Proc
 	return ssm.Validate(validators...)
 }
 
-func (ssm *SimpleStreamingMessage) MsgType() wrp.MessageType {
+func (ssm *simpleStreamingMessage) MsgType() wrp.MessageType {
 	return wrp.SimpleEventMessageType
 }
 
-func (ssm *SimpleStreamingMessage) To(msg *wrp.Message, validators ...wrp.Processor) error {
+func (ssm *simpleStreamingMessage) To(msg *wrp.Message, validators ...wrp.Processor) error {
 	if err := ssm.Validate(validators...); err != nil {
 		return err
 	}
@@ -90,7 +72,7 @@ func (ssm *SimpleStreamingMessage) To(msg *wrp.Message, validators ...wrp.Proces
 	return nil
 }
 
-func (ssm *SimpleStreamingMessage) Validate(validators ...wrp.Processor) error {
+func (ssm *simpleStreamingMessage) Validate(validators ...wrp.Processor) error {
 	if err := ssm.SimpleEvent.Validate(validators...); err != nil {
 		return err
 	}
@@ -107,7 +89,7 @@ func (ssm *SimpleStreamingMessage) Validate(validators ...wrp.Processor) error {
 	if ssm.StreamPacketNumber < 0 {
 		errs = append(errs, errors.New("StreamPacketNumber must be non-negative"))
 	}
-	if !ssm.StreamEncoding.IsValid() {
+	if !ssm.StreamEncoding.isValid() {
 		errs = append(errs, errors.New("StreamEncoding must be one of identity, gzip, or deflate"))
 	}
 
@@ -120,10 +102,14 @@ func (ssm *SimpleStreamingMessage) Validate(validators ...wrp.Processor) error {
 	return errors.Join(errs...)
 }
 
+func (ssm *simpleStreamingMessage) Is(msg wrp.Union) bool {
+	return Is(msg, wrp.NoStandardValidation())
+}
+
 // from takes a map of headers and sets the values of the SimpleStreamingMessage
 // based on the values in the map.  The only errors returned are if integer values
 // cannot be parsed.
-func (ssm *SimpleStreamingMessage) from(headers map[string]string) error {
+func (ssm *simpleStreamingMessage) from(headers map[string]string) error {
 	// Set to invalid value to ensure that the value is set.
 	ssm.StreamID = ""
 	ssm.StreamPacketNumber = -1
@@ -166,7 +152,7 @@ func (ssm *SimpleStreamingMessage) from(headers map[string]string) error {
 		case stream_final_packet:
 			tmp := strings.ToLower(value)
 			if tmp == "eof" {
-				ssm.StreamFinalPacket = "eof"
+				ssm.StreamFinalPacket = tmp
 			} else {
 				ssm.StreamFinalPacket = value
 			}
@@ -178,7 +164,7 @@ func (ssm *SimpleStreamingMessage) from(headers map[string]string) error {
 	return nil
 }
 
-func (ssm *SimpleStreamingMessage) headers() []string {
+func (ssm *simpleStreamingMessage) headers() []string {
 	headers := make([]string, 0, 5)
 
 	if ssm.StreamID != "" {
@@ -201,8 +187,8 @@ func (ssm *SimpleStreamingMessage) headers() []string {
 		headers = append(headers, stream_final_packet+": "+final)
 	}
 
-	if ssm.StreamEncoding.IsValid() && !ssm.StreamEncoding.Is(EncodingIdentity) {
-		headers = append(headers, stream_encoding+": "+string(ssm.StreamEncoding))
+	if ssm.StreamEncoding.isValid() && !ssm.StreamEncoding.is(EncodingIdentity) {
+		headers = append(headers, stream_encoding+": "+ssm.StreamEncoding.string())
 	}
 
 	return headers
@@ -254,4 +240,20 @@ func split(headers []string) (map[string]string, []string) {
 	}
 
 	return result, others
+}
+
+// GetStreamID returns the stream ID of the message if it is an SSP message.
+// There is only minimal validation done since this is a function used to
+// sort messages quickly.
+func GetStreamID(msg wrp.Message) (string, error) {
+	if msg.Type != wrp.SimpleEventMessageType {
+		return "", wrp.ErrNotHandled
+	}
+
+	mine, _ := split(msg.Headers)
+	if id, ok := mine[stream_id]; ok {
+		return id, nil
+	}
+
+	return "", wrp.ErrNotHandled
 }
