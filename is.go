@@ -14,9 +14,12 @@ func Is(msg wrp.Union, validators ...wrp.Processor) bool {
 		return true
 	}
 
-	var tmp wrp.SimpleEvent
-	if err := wrp.As(msg, &tmp, validators...); err != nil {
-		return false
+	tmp, ok := msg.(*wrp.Message)
+	if !ok {
+		tmp = new(wrp.Message)
+		if err := wrp.As(msg, tmp, validators...); err != nil {
+			return false
+		}
 	}
 
 	mine, _ := split(tmp.Headers)

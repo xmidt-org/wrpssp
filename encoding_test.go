@@ -98,7 +98,9 @@ func TestEncoding_Encode(t *testing.T) {
 				if err != nil {
 					panic(err)
 				}
-				writer.Close()
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
 				return buf.Bytes()
 			}(),
 			wantErr: nil,
@@ -114,7 +116,9 @@ func TestEncoding_Encode(t *testing.T) {
 				if err != nil {
 					panic(err)
 				}
-				writer.Close()
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
 				return buf.Bytes()
 			}(),
 			wantErr: nil,
@@ -164,7 +168,7 @@ func TestEncoding_Decode(t *testing.T) {
 				writer := gzip.NewWriter(&buf)
 				_, err := writer.Write([]byte("test data"))
 				require.NoError(t, err)
-				writer.Close()
+				require.NoError(t, writer.Close())
 				return buf.Bytes()
 			}(),
 			expected: []byte("test data"),
@@ -178,7 +182,7 @@ func TestEncoding_Decode(t *testing.T) {
 				writer, _ := flate.NewWriter(&buf, flate.DefaultCompression)
 				_, err := writer.Write([]byte("test data"))
 				require.NoError(t, err)
-				writer.Close()
+				require.NoError(t, writer.Close())
 				return buf.Bytes()
 			}(),
 			expected: []byte("test data"),

@@ -25,7 +25,8 @@ func TestEnd2End(t *testing.T) {
 	require.NoError(err)
 	assert.NotNil(p)
 
-	dest := wrp.SimpleEvent{
+	dest := wrp.Message{
+		Type:            wrp.SimpleEventMessageType,
 		Source:          "self:",
 		Destination:     "event:foo",
 		TransactionUUID: "test",
@@ -39,11 +40,11 @@ func TestEnd2End(t *testing.T) {
 	go func() {
 		var err error
 		for err == nil {
-			var msg wrp.Message
+			var msg *wrp.Message
 
 			msg, err = p.Next(ctx, dest)
 
-			_ = assembler.ProcessWRP(ctx, msg)
+			_ = assembler.ProcessWRP(ctx, *msg)
 		}
 	}()
 

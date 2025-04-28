@@ -109,9 +109,10 @@ func TestPacketizer_Next(t *testing.T) {
 	tests := []struct {
 		name       string
 		opts       []Option
-		in         wrp.SimpleEvent
+		in         wrp.Message
 		expected   []wrp.Message
 		packetizer *Packetizer // not used except for very specific tests
+		noVadors   bool
 		extra      bool
 		err        error
 	}{
@@ -124,7 +125,8 @@ func TestPacketizer_Next(t *testing.T) {
 				MaxPacketSize(5),
 				WithEncoding(EncodingIdentity),
 			},
-			in: wrp.SimpleEvent{
+			in: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
 				Source:      "mac:112233445566",
 				Destination: "event:device-status",
 			},
@@ -165,6 +167,63 @@ func TestPacketizer_Next(t *testing.T) {
 			},
 			err: io.EOF,
 		}, {
+			name: "valid next packet, request response",
+			opts: []Option{
+				ID("123"),
+				Reader(bytes.NewReader([]byte("HelloWorld"))),
+				EstimatedLength(10),
+				MaxPacketSize(5),
+				WithEncoding(EncodingIdentity),
+				WithUpdateTransactionUUID(func() (string, error) {
+					return "ABC", nil
+				}),
+			},
+			in: wrp.Message{
+				Type:        wrp.SimpleRequestResponseMessageType,
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
+				// TransactionUUID: not needed, will be set by the packetizer
+			},
+			expected: []wrp.Message{
+				{
+					Type:            wrp.SimpleRequestResponseMessageType,
+					Source:          "mac:112233445566",
+					Destination:     "event:device-status",
+					TransactionUUID: "ABC",
+					Headers: []string{
+						"stream-id: 123",
+						"stream-packet-number: 0",
+						"stream-estimated-total-length: 10",
+					},
+					Payload: []byte("Hello"),
+				},
+				{
+					Type:            wrp.SimpleRequestResponseMessageType,
+					Source:          "mac:112233445566",
+					Destination:     "event:device-status",
+					TransactionUUID: "ABC",
+					Headers: []string{
+						"stream-id: 123",
+						"stream-packet-number: 1",
+						"stream-estimated-total-length: 10",
+					},
+					Payload: []byte("World"),
+				},
+				{
+					Type:            wrp.SimpleRequestResponseMessageType,
+					Source:          "mac:112233445566",
+					Destination:     "event:device-status",
+					TransactionUUID: "ABC",
+					Headers: []string{
+						"stream-id: 123",
+						"stream-packet-number: 2",
+						"stream-estimated-total-length: 10",
+						"stream-final-packet: eof",
+					},
+				},
+			},
+			err: io.EOF,
+		}, {
 			name: "valid next packet, streaming",
 			opts: []Option{
 				ID("123"),
@@ -172,7 +231,8 @@ func TestPacketizer_Next(t *testing.T) {
 				MaxPacketSize(5),
 				WithEncoding(EncodingIdentity),
 			},
-			in: wrp.SimpleEvent{
+			in: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
 				Source:      "mac:112233445566",
 				Destination: "event:device-status",
 			},
@@ -199,6 +259,53 @@ func TestPacketizer_Next(t *testing.T) {
 				},
 				{
 					Type:        wrp.SimpleEventMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
+					Headers: []string{
+						"stream-id: 123",
+						"stream-packet-number: 2",
+						"stream-final-packet: eof",
+					},
+				},
+			},
+			err: io.EOF,
+		}, {
+			name:     "valid next packet, streaming, no validation",
+			noVadors: true,
+			opts: []Option{
+				ID("123"),
+				Reader(bytes.NewReader([]byte("HelloWorld"))),
+				MaxPacketSize(5),
+				WithEncoding(EncodingIdentity),
+			},
+			in: wrp.Message{
+				Type:        wrp.SimpleRequestResponseMessageType,
+				Source:      "mac:112233445566",
+				Destination: "event:device-status",
+			},
+			expected: []wrp.Message{
+				{
+					Type:        wrp.SimpleRequestResponseMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
+					Headers: []string{
+						"stream-id: 123",
+						"stream-packet-number: 0",
+					},
+					Payload: []byte("Hello"),
+				},
+				{
+					Type:        wrp.SimpleRequestResponseMessageType,
+					Source:      "mac:112233445566",
+					Destination: "event:device-status",
+					Headers: []string{
+						"stream-id: 123",
+						"stream-packet-number: 1",
+					},
+					Payload: []byte("World"),
+				},
+				{
+					Type:        wrp.SimpleRequestResponseMessageType,
 					Source:      "mac:112233445566",
 					Destination: "event:device-status",
 					Headers: []string{
@@ -218,7 +325,8 @@ func TestPacketizer_Next(t *testing.T) {
 				MaxPacketSize(6),
 				WithEncoding(EncodingIdentity),
 			},
-			in: wrp.SimpleEvent{
+			in: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
 				Source:      "mac:112233445566",
 				Destination: "event:device-status",
 			},
@@ -267,7 +375,8 @@ func TestPacketizer_Next(t *testing.T) {
 				MaxPacketSize(6),
 				WithEncoding(EncodingIdentity),
 			},
-			in: wrp.SimpleEvent{
+			in: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
 				Source:      "mac:112233445566",
 				Destination: "event:device-status",
 			},
@@ -298,7 +407,8 @@ func TestPacketizer_Next(t *testing.T) {
 				MaxPacketSize(6),
 				WithEncoding(EncodingIdentity),
 			},
-			in: wrp.SimpleEvent{
+			in: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
 				Source:      "mac:112233445566",
 				Destination: "event:device-status",
 			},
@@ -326,7 +436,7 @@ func TestPacketizer_Next(t *testing.T) {
 			extra: true,
 		},
 		{
-			name: "invalid wrp.SimpleEvent",
+			name: "invalid wrp.Message",
 			opts: []Option{
 				ID("123"),
 				Reader(
@@ -338,7 +448,8 @@ func TestPacketizer_Next(t *testing.T) {
 				MaxPacketSize(6),
 				WithEncoding(EncodingIdentity),
 			},
-			in: wrp.SimpleEvent{
+			in: wrp.Message{
+				Type:   wrp.SimpleEventMessageType,
 				Source: "mac:112233445566",
 				// Missing Destination
 			},
@@ -355,9 +466,30 @@ func TestPacketizer_Next(t *testing.T) {
 				p.encoding = "invalid"
 				return p
 			}(),
-			in: wrp.SimpleEvent{
+			in: wrp.Message{
+				Type:        wrp.SimpleEventMessageType,
 				Source:      "mac:112233445566",
 				Destination: "event:device-status",
+			},
+			err:   errUnknown,
+			extra: true,
+		}, {
+			name: "the transaction uuid function returns an error",
+			opts: []Option{
+				ID("123"),
+				Reader(bytes.NewReader([]byte("HelloWorld"))),
+				EstimatedLength(10),
+				MaxPacketSize(5),
+				WithEncoding(EncodingIdentity),
+				WithUpdateTransactionUUID(func() (string, error) {
+					return "", errUnknown
+				}),
+			},
+			in: wrp.Message{
+				Type:            wrp.SimpleRequestResponseMessageType,
+				Source:          "mac:112233445566",
+				Destination:     "event:device-status",
+				TransactionUUID: "1234567890",
 			},
 			err:   errUnknown,
 			extra: true,
@@ -385,7 +517,13 @@ func TestPacketizer_Next(t *testing.T) {
 			}
 
 			for i, expected := range tt.expected {
-				got, err := packetizer.Next(ctx, tt.in)
+				var vadors []wrp.Processor
+				if tt.noVadors {
+					vadors = []wrp.Processor{
+						wrp.NoStandardValidation(),
+					}
+				}
+				got, err := packetizer.Next(ctx, tt.in, vadors...)
 
 				assert.NotEmpty(t, got)
 				assert.Equal(t, expected.Headers, got.Headers)

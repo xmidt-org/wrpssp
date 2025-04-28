@@ -24,7 +24,7 @@ const (
 // and methods to support streaming.  Normal interactions with this message
 // should be through the Packetizer and Assember interfaces in this package.
 type simpleStreamingMessage struct {
-	wrp.SimpleEvent
+	wrp.Message
 	StreamID              string
 	StreamPacketNumber    int64
 	StreamEstimatedLength uint64
@@ -35,7 +35,7 @@ type simpleStreamingMessage struct {
 var _ wrp.Union = &simpleStreamingMessage{}
 
 func (ssm *simpleStreamingMessage) From(msg *wrp.Message, validators ...wrp.Processor) error {
-	err := ssm.SimpleEvent.From(msg, wrp.NoStandardValidation())
+	err := ssm.Message.From(msg, wrp.NoStandardValidation())
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (ssm *simpleStreamingMessage) To(msg *wrp.Message, validators ...wrp.Proces
 		return err
 	}
 
-	_ = ssm.SimpleEvent.To(msg, wrp.NoStandardValidation())
+	_ = ssm.Message.To(msg, wrp.NoStandardValidation())
 
 	_, others := split(ssm.Headers)
 	ours := ssm.headers()
@@ -73,7 +73,7 @@ func (ssm *simpleStreamingMessage) To(msg *wrp.Message, validators ...wrp.Proces
 }
 
 func (ssm *simpleStreamingMessage) Validate(validators ...wrp.Processor) error {
-	if err := ssm.SimpleEvent.Validate(validators...); err != nil {
+	if err := ssm.Message.Validate(validators...); err != nil {
 		return err
 	}
 
