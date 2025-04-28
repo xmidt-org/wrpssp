@@ -36,7 +36,8 @@ func TestSimpleStreamingMessage_From(t *testing.T) {
 				},
 			},
 			wantSSM: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:        wrp.SimpleEventMessageType,
 					Source:      "self:/service",
 					Destination: "event:foo",
 					Headers: []string{
@@ -51,13 +52,6 @@ func TestSimpleStreamingMessage_From(t *testing.T) {
 				StreamEncoding:        EncodingGzip,
 			},
 			wantErr: nil,
-		}, {
-			name: "Invalid SSP MessageType",
-			msg: wrp.Message{
-				Type: wrp.SimpleRequestResponseMessageType,
-			},
-			wantSSM: simpleStreamingMessage{},
-			wantErr: wrp.ErrInvalidMessageType,
 		}, {
 			name: "Invalid SSP Headers, missing stream-id",
 			msg: wrp.Message{
@@ -256,7 +250,8 @@ func TestSimpleStreamingMessage_To(t *testing.T) {
 		{
 			name: "Valid SSP Message",
 			ssm: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:        wrp.SimpleEventMessageType,
 					Source:      "self:/service",
 					Destination: "event:foo",
 				},
@@ -302,7 +297,8 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 		{
 			name: "Valid SSP Message",
 			ssm: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:        wrp.SimpleEventMessageType,
 					Source:      "self:/service",
 					Destination: "event:foo",
 				},
@@ -316,7 +312,8 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 		}, {
 			name: "Missing StreamID",
 			ssm: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:        wrp.SimpleEventMessageType,
 					Source:      "self:/service",
 					Destination: "event:foo",
 				},
@@ -329,7 +326,8 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 		}, {
 			name: "Negative StreamPacketNumber",
 			ssm: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:        wrp.SimpleEventMessageType,
 					Source:      "self:/service",
 					Destination: "event:foo",
 				},
@@ -343,7 +341,8 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 		}, {
 			name: "Invalid StreamEncoding",
 			ssm: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:        wrp.SimpleEventMessageType,
 					Source:      "self:/service",
 					Destination: "event:foo",
 				},
@@ -355,9 +354,10 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			},
 			wantErr: ErrInvalidInput,
 		}, {
-			name: "Invalid SimpleEvent - missing Destination",
+			name: "Invalid Message - missing Destination",
 			ssm: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:   wrp.SimpleEventMessageType,
 					Source: "self:/service",
 				},
 				StreamID:           "test-stream-id",
@@ -365,9 +365,10 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			},
 			wantErr: wrp.ErrMessageIsInvalid,
 		}, {
-			name: "Invalid SimpleEvent - missing Destination",
+			name: "Invalid Message - missing Destination",
 			ssm: simpleStreamingMessage{
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
+					Type:   wrp.SimpleEventMessageType,
 					Source: "self:/service",
 				},
 			},
@@ -492,23 +493,16 @@ func TestMessageIs(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Valid SimpleEvent with Headers",
-			msg: &wrp.SimpleEvent{
+			name: "Valid Message with Headers",
+			msg: &wrp.Message{
 				Headers: []string{"stream-id: test-stream-id"},
 			},
 			expected: true,
 		},
 		{
-			name: "Valid SimpleEvent without Headers",
-			msg: &wrp.SimpleEvent{
+			name: "Valid Message without Headers",
+			msg: &wrp.Message{
 				Headers: []string{},
-			},
-			expected: false,
-		},
-		{
-			name: "Invalid Message Type",
-			msg: &wrp.SimpleRequestResponse{
-				Headers: []string{"stream-id: test-stream-id"},
 			},
 			expected: false,
 		},

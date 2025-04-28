@@ -24,13 +24,13 @@ func TestAssembler_Read(t *testing.T) {
 			name: "multiple blocks",
 			blocks: map[int64]*simpleStreamingMessage{
 				0: {
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
 						Payload: []byte("Hello, "),
 					},
 				},
 				1: {
 					StreamFinalPacket: "EOF",
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
 						Payload: []byte("World!"),
 					},
 				},
@@ -43,7 +43,7 @@ func TestAssembler_Read(t *testing.T) {
 			blocks: map[int64]*simpleStreamingMessage{
 				0: {
 					StreamFinalPacket: "EOF",
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
 						Payload: []byte("Hello"),
 					},
 				},
@@ -56,7 +56,7 @@ func TestAssembler_Read(t *testing.T) {
 			blocks: map[int64]*simpleStreamingMessage{
 				0: {
 					StreamFinalPacket: "Oops",
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
 						Payload: []byte("Hello"),
 					},
 				},
@@ -107,7 +107,7 @@ func TestAssembler_Close(t *testing.T) {
 		packets: map[int64]*simpleStreamingMessage{
 			1: {
 				StreamFinalPacket: "EOF",
-				SimpleEvent: wrp.SimpleEvent{
+				Message: wrp.Message{
 					Payload: []byte("Hello"),
 				},
 			},
@@ -146,7 +146,38 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 					StreamID:              "1",
 					StreamPacketNumber:    0,
 					StreamEstimatedLength: 5,
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
+						Type:        wrp.SimpleEventMessageType,
+						Source:      "mac:112233445566",
+						Destination: "event:status/mac:112233445566",
+						Payload:     []byte("Hello"),
+					},
+				},
+			},
+			err: nil,
+		}, {
+			name: "valid message, custom validators",
+			assembler: &Assembler{
+				Validators: []wrp.Processor{
+					wrp.NoStandardValidation(),
+				},
+			},
+			msg: wrp.Message{
+				Source:      "mac:112233445566",
+				Destination: "event:status/mac:112233445566",
+				Headers: []string{
+					"stream-id: 1",
+					"stream-packet-number: 0",
+					"stream-estimated-total-length: 5",
+				},
+				Payload: []byte("Hello"),
+			},
+			expected: map[int64]*simpleStreamingMessage{
+				0: {
+					StreamID:              "1",
+					StreamPacketNumber:    0,
+					StreamEstimatedLength: 5,
+					Message: wrp.Message{
 						Source:      "mac:112233445566",
 						Destination: "event:status/mac:112233445566",
 						Payload:     []byte("Hello"),
@@ -171,7 +202,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 				0: {
 					StreamID:           "1",
 					StreamPacketNumber: 0,
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
+						Type:        wrp.SimpleEventMessageType,
 						Source:      "mac:112233445566",
 						Destination: "event:status/mac:112233445566",
 						Payload:     []byte("Hello"),
@@ -179,20 +211,6 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 				},
 			},
 			err: nil,
-		}, {
-			name: "invalid message type",
-			assembler: &Assembler{
-				packets: make(map[int64]*simpleStreamingMessage),
-			},
-			msg: wrp.Message{
-				Type:        wrp.SimpleRequestResponseMessageType,
-				Source:      "mac:112233445566",
-				Destination: "event:status/mac:112233445566",
-				Headers:     []string{"stream-id: 1", "stream-packet-number: 0"},
-				Payload:     []byte("Hello"),
-			},
-			expected: map[int64]*simpleStreamingMessage{},
-			err:      wrp.ErrNotHandled,
 		}, {
 			name: "no message number",
 			assembler: &Assembler{
@@ -229,7 +247,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 					0: {
 						StreamID:           "1",
 						StreamPacketNumber: 0,
-						SimpleEvent: wrp.SimpleEvent{
+						Message: wrp.Message{
+							Type:        wrp.SimpleEventMessageType,
 							Source:      "mac:112233445566",
 							Destination: "event:status/mac:112233445566",
 							Payload:     []byte("Hello"),
@@ -248,7 +267,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 				0: {
 					StreamID:           "1",
 					StreamPacketNumber: 0,
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
+						Type:        wrp.SimpleEventMessageType,
 						Source:      "mac:112233445566",
 						Destination: "event:status/mac:112233445566",
 						Payload:     []byte("Hello"),
@@ -264,7 +284,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 					4: {
 						StreamID:           "1",
 						StreamPacketNumber: 4,
-						SimpleEvent: wrp.SimpleEvent{
+						Message: wrp.Message{
+							Type:        wrp.SimpleEventMessageType,
 							Source:      "mac:112233445566",
 							Destination: "event:status/mac:112233445566",
 							Payload:     []byte("Hello"),
@@ -283,7 +304,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 				4: {
 					StreamID:           "1",
 					StreamPacketNumber: 4,
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
+						Type:        wrp.SimpleEventMessageType,
 						Source:      "mac:112233445566",
 						Destination: "event:status/mac:112233445566",
 						Payload:     []byte("Hello"),
@@ -298,7 +320,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 					0: {
 						StreamID:           "1",
 						StreamPacketNumber: 0,
-						SimpleEvent: wrp.SimpleEvent{
+						Message: wrp.Message{
+							Type:        wrp.SimpleEventMessageType,
 							Source:      "mac:112233445566",
 							Destination: "event:status/mac:112233445566",
 							Payload:     []byte("Hello"),
@@ -317,7 +340,8 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 				0: {
 					StreamID:           "1",
 					StreamPacketNumber: 0,
-					SimpleEvent: wrp.SimpleEvent{
+					Message: wrp.Message{
+						Type:        wrp.SimpleEventMessageType,
 						Source:      "mac:112233445566",
 						Destination: "event:status/mac:112233445566",
 						Payload:     []byte("Hello"),

@@ -18,12 +18,13 @@ import (
 // The Assembler implements the io.ReadCloser interface, as well as the wrp.Processor
 // interface.
 type Assembler struct {
-	closed  bool
-	current int64
-	final   string
-	offset  int
-	packets map[int64]*simpleStreamingMessage
-	m       sync.Mutex
+	Validators []wrp.Processor
+	closed     bool
+	current    int64
+	final      string
+	offset     int
+	packets    map[int64]*simpleStreamingMessage
+	m          sync.Mutex
 
 	decoded *decoded
 }
@@ -140,12 +141,12 @@ func (a *Assembler) close() {
 // message, it is ignored.  If the message is an SSP message, it is processed.
 // The context is not used, but is required by the wrp.Processor interface.
 func (a *Assembler) ProcessWRP(_ context.Context, msg wrp.Message) error {
-	if !Is(&msg) {
+	if !Is(&msg, a.Validators...) {
 		return wrp.ErrNotHandled
 	}
 
 	var ssp simpleStreamingMessage
-	if err := ssp.From(&msg); err != nil {
+	if err := ssp.From(&msg, a.Validators...); err != nil {
 		return err
 	}
 

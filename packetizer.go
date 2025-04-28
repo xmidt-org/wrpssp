@@ -19,6 +19,7 @@ type Packetizer struct {
 	currentPacketNumber int64
 	maxPacketSize       int
 	encoding            Encoding
+	txGen               func() (string, error)
 	estimatedSize       uint64
 	finalPacket         string
 	outcome             error
@@ -56,21 +57,21 @@ func New(opts ...Option) (*Packetizer, error) {
 // populated WRP message or an error.  The error io.EOF will be returned when
 // the stream is exhausted.  Other errors may be returned if those are
 // encountered during the processing.
-func (p *Packetizer) Next(ctx context.Context, msg wrp.SimpleEvent) (wrp.Message, error) {
+func (p *Packetizer) Next(ctx context.Context, msg wrp.Message, validators ...wrp.Processor) (*wrp.Message, error) {
 	ssm, err := p.nextRaw(ctx, msg)
 	if ssm == nil {
-		return wrp.Message{}, err
+		return nil, err
 	}
 
 	var out wrp.Message
-	if err := ssm.To(&out); err != nil {
-		return wrp.Message{}, err
+	if err := ssm.To(&out, validators...); err != nil {
+		return nil, err
 	}
 
-	return out, err
+	return &out, err
 }
 
-func (p *Packetizer) nextRaw(ctx context.Context, msg ...wrp.SimpleEvent) (*simpleStreamingMessage, error) {
+func (p *Packetizer) nextRaw(ctx context.Context, msg ...wrp.Message) (*simpleStreamingMessage, error) {
 	if p.outcome != nil {
 		return nil, p.outcome
 	}
@@ -100,7 +101,7 @@ func (p *Packetizer) nextRaw(ctx context.Context, msg ...wrp.SimpleEvent) (*simp
 	var out simpleStreamingMessage
 
 	if len(msg) > 0 {
-		out.SimpleEvent = msg[0]
+		out.Message = msg[0]
 	}
 
 	out.Payload = nil
@@ -119,6 +120,14 @@ func (p *Packetizer) nextRaw(ctx context.Context, msg ...wrp.SimpleEvent) (*simp
 	out.StreamEncoding = p.encoding
 
 	p.currentPacketNumber++
+
+	if p.txGen != nil {
+		txID, err := p.txGen()
+		if err != nil {
+			return nil, err
+		}
+		out.TransactionUUID = txID
+	}
 
 	return &out, p.outcome
 }
