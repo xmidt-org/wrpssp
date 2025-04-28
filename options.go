@@ -73,6 +73,41 @@ func WithEncoding(e Encoding) Option {
 	})
 }
 
+// Encryptor is an interface that defines the methods for encrypting data.
+type Encryptor interface {
+	// Encrypt encrypts the given data and returns the encrypted data and a list
+	// headers that should be added to the WRP message.
+	// The headers are returned as a list of strings, where each string is a
+	// header in the format "key: value".
+	Encrypt(cleartext []byte) (ciphertext []byte, headers []string, err error)
+}
+
+// Decryptor is an interface that defines the methods for decrypting data.
+type Decryptor interface {
+	// Decrypt decrypts the given data and returns the decrypted data.
+	Decrypt(ciphertext []byte, headers []string) (cleartext []byte, err error)
+}
+
+type clearTextEncryptor struct{}
+
+func (c *clearTextEncryptor) Encrypt(data []byte) ([]byte, []string, error) {
+	return data, nil, nil
+}
+
+var _ Encryptor = (*clearTextEncryptor)(nil)
+
+// WithEncryptor sets the encryptor of the stream.  This is optional.  If the
+// encryptor is not set, no encryption is used.
+func WithEncryptor(e Encryptor) Option {
+	return optionFunc(func(s *Packetizer) error {
+		if e == nil {
+			e = &clearTextEncryptor{}
+		}
+		s.encryptor = e
+		return nil
+	})
+}
+
 // validate ensures that the stream is valid before returning it.
 func finalize() Option {
 	return optionFunc(func(s *Packetizer) error {

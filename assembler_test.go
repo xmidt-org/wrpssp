@@ -337,3 +337,40 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 		})
 	}
 }
+
+func TestAssembler_Complete(t *testing.T) {
+	tests := []struct {
+		name      string
+		assembler Assembler
+		expected  bool
+	}{
+		{
+			name: "Incomplete Assembler",
+			assembler: Assembler{
+				final: "",
+			},
+			expected: false,
+		},
+		{
+			name: "Complete Assembler with EOF",
+			assembler: Assembler{
+				final: "EOF",
+			},
+			expected: true,
+		},
+		{
+			name: "Complete Assembler with unexpected EOF",
+			assembler: Assembler{
+				final: "unexpected EOF",
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.assembler.Complete()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

@@ -18,12 +18,13 @@ import (
 // The Assembler implements the io.ReadCloser interface, as well as the wrp.Processor
 // interface.
 type Assembler struct {
-	closed  bool
-	current int64
-	final   string
-	offset  int
-	packets map[int64]*simpleStreamingMessage
-	m       sync.Mutex
+	Decryptor Decryptor
+	closed    bool
+	current   int64
+	final     string
+	offset    int
+	packets   map[int64]*simpleStreamingMessage
+	m         sync.Mutex
 
 	decoded *decoded
 }
@@ -134,6 +135,15 @@ func (a *Assembler) close() {
 	a.packets = nil
 	a.decoded = nil
 	a.closed = true
+}
+
+// Complete returns true if the Assembler has all of the packets needed to
+// assemble the stream.
+func (a *Assembler) Complete() bool {
+	a.m.Lock()
+	defer a.m.Unlock()
+
+	return a.getFinalState() != nil
 }
 
 // ProcessWRP takes a WRP message and processes it.  If the message is not an SSP

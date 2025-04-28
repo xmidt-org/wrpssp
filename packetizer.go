@@ -22,6 +22,7 @@ type Packetizer struct {
 	estimatedSize       uint64
 	finalPacket         string
 	outcome             error
+	encryptor           Encryptor
 }
 
 // New creates a new Packetizer with the given options.  Similar to io.Reader and
@@ -33,6 +34,7 @@ func New(opts ...Option) (*Packetizer, error) {
 		MaxPacketSize(0),
 		EstimatedLength(0),
 		WithEncoding(EncodingGzip),
+		WithEncryptor(nil),
 	}
 
 	vadors := []Option{
@@ -110,6 +112,14 @@ func (p *Packetizer) nextRaw(ctx context.Context, msg ...wrp.SimpleEvent) (*simp
 			p.finalPacket = err.Error()
 			p.outcome = err
 		}
+
+		var headers []string
+		out.Payload, headers, err = p.encryptor.Encrypt(out.Payload)
+		if err != nil {
+			p.finalPacket = err.Error()
+			p.outcome = err
+		}
+		out.Headers = append(out.Headers, headers...)
 	}
 
 	out.StreamID = p.id
