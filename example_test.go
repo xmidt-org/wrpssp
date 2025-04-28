@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/xmidt-org/wrp-go/v5"
-	wrpssp "github.com/xmidt-org/wrpssp"
+	wrpssp "github.com/xmidt-org/wrpssp/v2"
 )
 
 func Example() {

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmidt-org/wrp-go/v5"
-	wrpssp "github.com/xmidt-org/wrpssp"
+	wrpssp "github.com/xmidt-org/wrpssp/v2"
 )
 
 func TestEnd2End(t *testing.T) {

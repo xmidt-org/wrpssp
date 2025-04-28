@@ -1,4 +1,4 @@
-module github.com/xmidt-org/wrpssp
+module github.com/xmidt-org/wrpssp/v2
 
 go 1.23.1
 
