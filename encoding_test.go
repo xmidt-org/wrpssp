@@ -19,9 +19,18 @@ func TestEncoding_IsValid(t *testing.T) {
 		encoding Encoding
 		expected bool
 	}{
+		{"Valid Empty", Encoding(""), true},
 		{"Valid Identity", EncodingIdentity, true},
 		{"Valid Gzip", EncodingGzip, true},
+		{"Valid GzipNoCompression", EncodingGzipNoCompression, true},
+		{"Valid GzipBestSpeed", EncodingGzipBestSpeed, true},
+		{"Valid GzipBestCompression", EncodingGzipBestCompression, true},
+		{"Valid GzipHuffmanOnly", EncodingGzipHuffmanOnly, true},
 		{"Valid Deflate", EncodingDeflate, true},
+		{"Valid DeflateNoCompression", EncodingDeflateNoCompression, true},
+		{"Valid DeflateBestSpeed", EncodingDeflateBestSpeed, true},
+		{"Valid DeflateBestCompression", EncodingDeflateBestCompression, true},
+		{"Valid DeflateHuffmanOnly", EncodingDeflateHuffmanOnly, true},
 		{"Invalid Encoding", Encoding("invalid"), false},
 	}
 
@@ -130,6 +139,74 @@ func TestEncoding_Encode(t *testing.T) {
 			expected: nil,
 			wantErr:  ErrUnsupportedEncoding,
 		},
+		{
+			name:     "Gzip BestSpeed",
+			encoding: EncodingGzipBestSpeed,
+			data:     []byte("test data"),
+			expected: func() []byte {
+				var buf bytes.Buffer
+				writer, _ := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+				_, err := writer.Write([]byte("test data"))
+				if err != nil {
+					panic(err)
+				}
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
+				return buf.Bytes()
+			}(),
+			wantErr: nil,
+		},
+		{
+			name:     "Gzip BestCompression",
+			encoding: EncodingGzipBestCompression,
+			data:     []byte("test data"),
+			expected: func() []byte {
+				var buf bytes.Buffer
+				writer, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+				_, err := writer.Write([]byte("test data"))
+				if err != nil {
+					panic(err)
+				}
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
+				return buf.Bytes()
+			}(),
+			wantErr: nil,
+		},
+		{
+			name:     "Deflate BestSpeed",
+			encoding: EncodingDeflateBestSpeed,
+			data:     []byte("test data"),
+			expected: func() []byte {
+				var buf bytes.Buffer
+				writer, _ := flate.NewWriter(&buf, flate.BestSpeed)
+				_, err := writer.Write([]byte("test data"))
+				if err != nil {
+					panic(err)
+				}
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
+				return buf.Bytes()
+			}(),
+			wantErr: nil,
+		},
+		{
+			name:     "Unsupported Gzip Variant",
+			encoding: Encoding("gzip+unknown"),
+			data:     []byte("test data"),
+			expected: nil,
+			wantErr:  ErrUnsupportedEncoding,
+		},
+		{
+			name:     "Unsupported Deflate Variant",
+			encoding: Encoding("deflate+unknown"),
+			data:     []byte("test data"),
+			expected: nil,
+			wantErr:  ErrUnsupportedEncoding,
+		},
 	}
 
 	for _, tt := range tests {
@@ -194,6 +271,78 @@ func TestEncoding_Decode(t *testing.T) {
 			data:     []byte("test data"),
 			expected: nil,
 			wantErr:  ErrUnsupportedEncoding,
+		},
+		{
+			name:     "Gzip BestSpeed Decoding",
+			encoding: EncodingGzipBestSpeed,
+			data: func() []byte {
+				var buf bytes.Buffer
+				writer, _ := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+				_, err := writer.Write([]byte("test data"))
+				if err != nil {
+					panic(err)
+				}
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
+				return buf.Bytes()
+			}(),
+			expected: []byte("test data"),
+			wantErr:  nil,
+		},
+		{
+			name:     "Deflate BestCompression Decoding",
+			encoding: EncodingDeflateBestCompression,
+			data: func() []byte {
+				var buf bytes.Buffer
+				writer, _ := flate.NewWriter(&buf, flate.BestCompression)
+				_, err := writer.Write([]byte("test data"))
+				if err != nil {
+					panic(err)
+				}
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
+				return buf.Bytes()
+			}(),
+			expected: []byte("test data"),
+			wantErr:  nil,
+		},
+		{
+			name:     "Unknown Gzip Variant Decoding (lenient)",
+			encoding: Encoding("gzip+unknown"),
+			data: func() []byte {
+				var buf bytes.Buffer
+				writer := gzip.NewWriter(&buf)
+				_, err := writer.Write([]byte("test data"))
+				if err != nil {
+					panic(err)
+				}
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
+				return buf.Bytes()
+			}(),
+			expected: []byte("test data"),
+			wantErr:  nil,
+		},
+		{
+			name:     "Unknown Deflate Variant Decoding (lenient)",
+			encoding: Encoding("deflate+unknown"),
+			data: func() []byte {
+				var buf bytes.Buffer
+				writer, _ := flate.NewWriter(&buf, flate.DefaultCompression)
+				_, err := writer.Write([]byte("test data"))
+				if err != nil {
+					panic(err)
+				}
+				if err = writer.Close(); err != nil {
+					panic(err)
+				}
+				return buf.Bytes()
+			}(),
+			expected: []byte("test data"),
+			wantErr:  nil,
 		},
 	}
 

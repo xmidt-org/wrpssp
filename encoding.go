@@ -47,7 +47,16 @@ type Encoding string
 
 func (e Encoding) isValid() bool {
 	switch e {
-	case "", EncodingIdentity, EncodingGzip, EncodingDeflate:
+	case
+		EncodingIdentity, "",
+
+		EncodingGzip,
+		EncodingGzipNoCompression, EncodingGzipBestSpeed,
+		EncodingGzipBestCompression, EncodingGzipHuffmanOnly,
+
+		EncodingDeflate,
+		EncodingDeflateNoCompression, EncodingDeflateBestSpeed,
+		EncodingDeflateBestCompression, EncodingDeflateHuffmanOnly:
 		return true
 	default:
 		return false
@@ -69,17 +78,19 @@ func (e Encoding) string() string {
 func (e Encoding) encode(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	var writer io.WriteCloser
-	var err error
 
+	err := ErrUnsupportedEncoding
 	switch {
 	case e.is(EncodingIdentity):
 		return data, nil
 	case strings.HasPrefix(string(e), "gzip"):
-		writer, err = gzip.NewWriterLevel(&buf, compressionLevels[e])
+		if level, found := compressionLevels[e]; found {
+			writer, err = gzip.NewWriterLevel(&buf, level)
+		}
 	case strings.HasPrefix(string(e), "deflate"):
-		writer, err = flate.NewWriter(&buf, compressionLevels[e])
-	default:
-		err = ErrUnsupportedEncoding
+		if level, found := compressionLevels[e]; found {
+			writer, err = flate.NewWriter(&buf, level)
+		}
 	}
 
 	if err == nil {
