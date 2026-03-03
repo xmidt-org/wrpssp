@@ -354,6 +354,21 @@ func TestSimpleStreamingMessage_Validate(t *testing.T) {
 			},
 			wantErr: ErrInvalidInput,
 		}, {
+			name: "Invalid StreamID characters",
+			ssm: simpleStreamingMessage{
+				Message: wrp.Message{
+					Type:        wrp.SimpleEventMessageType,
+					Source:      "self:/service",
+					Destination: "event:foo",
+				},
+				StreamID:              "test!stream",
+				StreamPacketNumber:    1,
+				StreamEstimatedLength: 100,
+				StreamFinalPacket:     "eof",
+				StreamEncoding:        EncodingGzip,
+			},
+			wantErr: ErrInvalidInput,
+		}, {
 			name: "Invalid Message - missing Destination",
 			ssm: simpleStreamingMessage{
 				Message: wrp.Message{

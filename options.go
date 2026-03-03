@@ -6,7 +6,6 @@ package wrpssp
 import (
 	"fmt"
 	"io"
-	"regexp"
 )
 
 // Option is a functional option for the Stream.
@@ -99,8 +98,7 @@ func finalize() Option {
 			return fmt.Errorf("%w: id must not be empty", ErrInvalidInput)
 		}
 
-		re := regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-		if !re.MatchString(s.id) {
+		if !validID.MatchString(s.id) {
 			return fmt.Errorf("%w: id contains invalid characters", ErrInvalidInput)
 		}
 

@@ -32,7 +32,7 @@ within a Xmidt system.
 
 ## 2. Data Structures
 
-To stream using the simple streaming protocol, the "Simple Event " type
+To stream using the simple streaming protocol, the "Simple Event" type
 (msg_type = 4) message type should be used.  This works bi-directionally.  This
 is mainly designed for sending files from a CPE or streaming data from the CPE,
 and request response handling will need to be handled via events instead of the
@@ -41,8 +41,8 @@ simpler "Simple Request-Response" (msg_type = 3) message type.
 The wrp message headers field should contain the following control headers:
 
 ```bnf
-<stream-id> ::= <string>
-<stream-packet-number> ::= [1-9][0-9]*
+<stream-id> ::= <identifier>
+<stream-packet-number> ::= '0' | [1-9][0-9]*
 <stream-final-packet> ::= 'eof' | <string>
 <stream-encoding> ::= 'gzip' | 'deflate' | 'identity'
 <stream-estimated-total-length> ::= [1-9][0-9]*
@@ -52,14 +52,14 @@ Any whitespace found is ignored as well as the case of the labels.
 
 - `stream-id`: The unique stream identifier.
 - `stream-packet-number`: **Required** The 0-index based packet reassembly order.
-- `stream-final-packet`: **Required** Marks the final packet in the stream and
-   end of stream reason.  Only present in the final packet.  The value of 'eof'
+- `stream-final-packet`: **Optional** MUST be present in the final packet of
+   the stream and MUST NOT be present in any other packet.  The value of 'eof'
    indicates the expected EOF condition has been met.  Any other value indicates
    an unexpected EOF condition has been encountered.
 - `stream-encoding`: **Optional** The encoding used to create the payload.
     - `gzip`: The original payload was gzipped and the compressed version was
       sent.
-    - `defalte`: The original payload was deflated and the compressed version
+    - `deflate`: The original payload was deflated and the compressed version
       was sent.
     - `identity`: The payload is a raw stream of bytes.  If the header is
       omitted, `identity` is the default value.
@@ -69,7 +69,8 @@ Any whitespace found is ignored as well as the case of the labels.
 ### String Grammar
 The following grammar is used for above fields defined as <string>:
 ```bnf
-<string>  ::= <letter> | <digit> | <symbol> *
+<identifier> ::= <letter> | <digit> | "_" | "-" +
+<string>  ::= <letter> | <digit> | <space> | <symbol> *
 <letter>         ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" |
                      "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" |
                      "U" | "V" | "W" | "X" | "Y" | "Z" |
@@ -77,9 +78,10 @@ The following grammar is used for above fields defined as <string>:
                      "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" |
                      "u" | "v" | "w" | "x" | "y" | "z"
 <digit>          ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-<symbol>         ::= " " | "!" | "#" | "$" | "&" | "'" | "(" | ")" | "*" | "+" |
-                     "," | "-" | "." | "/" | ":" | ";" | "=" | "?" | "@" | "[" |
-                     "\" | "]" | "_" | | "~"
+<space>          ::= " "
+<symbol>         ::= "!" | "#" | "$" | "&" | "'" | "(" | ")" | "*" | "+" | "," |
+                     "-" | "." | "/" | ":" | ";" | "=" | "?" | "@" | "[" | "\" |
+                     "]" | "_" | "|" | "~"
 ```
 
 ## 3. Segmentation and Reassembly

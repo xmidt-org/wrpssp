@@ -5,11 +5,14 @@ package wrpssp
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/xmidt-org/wrp-go/v5"
 )
+
+var validID = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 const (
 	// These are the string literals found in the messages.
@@ -85,6 +88,8 @@ func (ssm *simpleStreamingMessage) Validate(validators ...wrp.Processor) error {
 
 	if ssm.StreamID == "" {
 		errs = append(errs, errors.New("StreamID is required"))
+	} else if !validID.MatchString(ssm.StreamID) {
+		errs = append(errs, errors.New("StreamID contains invalid characters"))
 	}
 	if ssm.StreamPacketNumber < 0 {
 		errs = append(errs, errors.New("StreamPacketNumber must be non-negative"))
