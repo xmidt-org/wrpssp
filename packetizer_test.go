@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -513,7 +514,7 @@ func TestPacketizer_Next(t *testing.T) {
 				if tt.err == nil {
 					assert.NoError(t, err, "message %d should have no error", i)
 				} else {
-					assert.Error(t, err, "message %i should have error", i)
+					assert.Error(t, err, "message %d should have error", i)
 					if !errors.Is(tt.err, errUnknown) {
 						assert.ErrorIs(t, err, tt.err, "message %d should have correct error", i)
 					}
@@ -588,23 +589,30 @@ func TestPacketizer_FrameBoundaryAlignment(t *testing.T) {
 
 			// Collect all payloads
 			var payloads [][]byte
-			var packetNumber int64
+			var expectedPacketNumber int64
 			for {
 				got, err := packetizer.Next(context.Background(), in)
 
 				if got != nil {
 					// Verify sequential packet numbers
+					foundPacketNumber := false
 					for _, h := range got.Headers {
 						if len(h) > 22 && h[:22] == "stream-packet-number: " {
-							_, scanErr := bytes.NewReader([]byte(h[22:])).Read(make([]byte, 20))
-							assert.NoError(t, scanErr)
+							numberStr := h[22:]
+							actualNumber, parseErr := strconv.ParseInt(numberStr, 10, 64)
+							require.NoError(t, parseErr, "failed to parse packet number from header: %s", h)
+							assert.Equal(t, expectedPacketNumber, actualNumber,
+								"packet number should be sequential")
+							foundPacketNumber = true
+							break
 						}
 					}
+					assert.True(t, foundPacketNumber, "packet should have stream-packet-number header")
 
 					if len(got.Payload) > 0 {
 						payloads = append(payloads, got.Payload)
 					}
-					packetNumber++
+					expectedPacketNumber++
 				}
 
 				if errors.Is(err, io.EOF) {

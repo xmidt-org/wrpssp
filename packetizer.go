@@ -65,9 +65,13 @@ func (p *Packetizer) Next(ctx context.Context, msg wrp.Message, validators ...wr
 		return nil, p.outcome
 	}
 
-	tx, err := p.txGen()
-	if err != nil {
-		return nil, err
+	var tx string
+	var err error
+	if p.txGen != nil {
+		tx, err = p.txGen()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	ssm := p.nextRaw(ctx, tx, msg)
@@ -93,7 +97,9 @@ func (p *Packetizer) nextRaw(ctx context.Context, tx string, msg wrp.Message) *s
 	out.StreamPacketNumber = p.currentPacketNumber
 	out.StreamEstimatedLength = p.estimatedSize
 	out.StreamFinalPacket = p.outcomeToString()
-	out.TransactionUUID = tx
+	if tx != "" {
+		out.TransactionUUID = tx
+	}
 	out.Payload = buf
 
 	p.currentPacketNumber++

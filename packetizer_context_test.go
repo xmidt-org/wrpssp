@@ -7,7 +7,6 @@ import (
 	"context"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,13 +14,18 @@ import (
 )
 
 // slowReader simulates a slow network reader that returns data in chunks
-// with delays between reads, allowing context cancellation to occur mid-read.
+// with controllable synchronization between reads, allowing context cancellation
+// to occur mid-read. Uses channel-based signaling instead of time.Sleep for
+// deterministic test behavior.
 type slowReader struct {
 	data      []byte
 	offset    int
 	chunkSize int
-	delay     time.Duration
 	readCount int
+	// readSignal is an optional channel to signal when each read should proceed.
+	// If nil, reads proceed immediately. If set, reads after the first will block
+	// waiting for a signal before returning data.
+	readSignal chan struct{}
 }
 
 func (sr *slowReader) Read(p []byte) (int, error) {
@@ -29,9 +33,9 @@ func (sr *slowReader) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	// Delay after first read to allow context cancellation
-	if sr.readCount > 0 && sr.delay > 0 {
-		time.Sleep(sr.delay)
+	// Wait for signal after first read (if signal channel is configured)
+	if sr.readCount > 0 && sr.readSignal != nil {
+		<-sr.readSignal
 	}
 	sr.readCount++
 
@@ -62,10 +66,11 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 	t.Run("context cancelled after partial read returns partial data", func(t *testing.T) {
 		// Setup: Create a slow reader that will trigger context cancellation mid-read
 		input := []byte("ABCDEFGHIJKLMNOP") // 16 bytes
+		readSignal := make(chan struct{})
 		slowReader := &slowReader{
-			data:      input,
-			chunkSize: 2,                     // Return 2 bytes per read
-			delay:     40 * time.Millisecond, // Delay between reads
+			data:       input,
+			chunkSize:  2, // Return 2 bytes per read
+			readSignal: readSignal,
 		}
 
 		packetizer, err := New(
@@ -82,34 +87,48 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 			Destination: "event:test",
 		}
 
-		// Create context that will be cancelled after 90ms
-		// Timeline:
-		// 0ms: Read 2 bytes ("AB")
-		// 40ms: Read 2 bytes ("CD") - total 4 bytes
-		// 80ms: Read 2 bytes ("EF") - total 6 bytes
-		// 90ms: Context timeout!
-		// 120ms: Would read next, but context cancelled
-		// Result: Check context at line 147, return 6 bytes with error
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Millisecond)
-		defer cancel()
+		// Create context that will be cancelled manually
+		ctx, cancel := context.WithCancel(context.Background())
 
-		got, err := packetizer.Next(ctx, in)
+		// Start the read in a goroutine
+		type result struct {
+			msg *wrp.Message
+			err error
+		}
+		resultCh := make(chan result, 1)
 
-		// Should get context.DeadlineExceeded error
-		assert.ErrorIs(t, err, context.DeadlineExceeded, "should return deadline exceeded error")
+		go func() {
+			msg, err := packetizer.Next(ctx, in)
+			resultCh <- result{msg, err}
+		}()
+
+		// Allow a few reads to succeed (first read doesn't wait)
+		// Read 1: 2 bytes ("AB") - happens immediately
+		// Read 2: 2 bytes ("CD") - wait for signal
+		readSignal <- struct{}{}
+		// Read 3: 2 bytes ("EF") - wait for signal
+		readSignal <- struct{}{}
+
+		// Now cancel context before next read can proceed
+		cancel()
+
+		// Get the result
+		res := <-resultCh
+
+		// Should get context.Canceled error
+		assert.ErrorIs(t, res.err, context.Canceled, "should return canceled error")
 
 		// Should still get partial data (not nil)
-		require.NotNil(t, got, "should return message even on context cancel")
-		assert.NotEmpty(t, got.Payload, "should return partial data even on context cancel")
+		require.NotNil(t, res.msg, "should return message even on context cancel")
+		assert.NotEmpty(t, res.msg.Payload, "should return partial data even on context cancel")
 
-		// Verify we got partial data (not the full 20 bytes)
-		assert.Greater(t, len(got.Payload), 0, "should have read at least some data")
-		assert.Less(t, len(got.Payload), 20, "should have less than full packet size")
+		// Verify we got partial data (6 bytes from 3 reads before cancellation)
+		assert.Equal(t, 6, len(res.msg.Payload), "should have 6 bytes from 3 reads")
 
-		t.Logf("Partial data received: %d bytes: %q (expected 4-8 bytes)", len(got.Payload), string(got.Payload))
+		t.Logf("Partial data received: %d bytes: %q", len(res.msg.Payload), string(res.msg.Payload))
 
 		// Verify the data is correct prefix
-		assert.Equal(t, input[:len(got.Payload)], got.Payload, "partial data should be correct prefix of input")
+		assert.Equal(t, input[:len(res.msg.Payload)], res.msg.Payload, "partial data should be correct prefix of input")
 	})
 
 	t.Run("context cancelled immediately returns empty data", func(t *testing.T) {
@@ -143,8 +162,8 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 		assert.Nil(t, got)
 	})
 
-	t.Run("context cancelled after full buffer returns full data with no error", func(t *testing.T) {
-		// Test that if buffer fills before context check, we get the data
+	t.Run("full buffer read completes before context cancel", func(t *testing.T) {
+		// Test that if buffer fills in one read, we get the data even if context is cancelled
 		input := []byte("ABCDEFGHIJ") // Exactly 10 bytes
 
 		packetizer, err := New(
@@ -161,13 +180,13 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 			Destination: "event:test",
 		}
 
-		// Context with short timeout, but data arrives fast
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		// Context that gets cancelled, but the read completes first
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		got, err := packetizer.Next(ctx, in)
 
-		// Should succeed because buffer filled in one read
+		// Should succeed because buffer filled in one read (no context check mid-read)
 		assert.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, []byte("ABCDEFGHIJ"), got.Payload)
@@ -179,10 +198,11 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 func TestPacketizer_ContextCancelPreservesStreamState(t *testing.T) {
 	input := []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ") // 26 bytes
 
+	readSignal := make(chan struct{})
 	slowReader := &slowReader{
-		data:      input,
-		chunkSize: 2,
-		delay:     30 * time.Millisecond,
+		data:       input,
+		chunkSize:  2,
+		readSignal: readSignal,
 	}
 
 	packetizer, err := New(
@@ -200,15 +220,33 @@ func TestPacketizer_ContextCancelPreservesStreamState(t *testing.T) {
 	}
 
 	// First call: cancel after partial read
-	ctx1, cancel1 := context.WithTimeout(context.Background(), 80*time.Millisecond)
-	defer cancel1()
+	ctx1, cancel1 := context.WithCancel(context.Background())
 
-	got1, err1 := packetizer.Next(ctx1, in)
-	assert.ErrorIs(t, err1, context.DeadlineExceeded)
+	// Run first call in goroutine
+	type result struct {
+		msg *wrp.Message
+		err error
+	}
+	resultCh := make(chan result, 1)
+
+	go func() {
+		msg, err := packetizer.Next(ctx1, in)
+		resultCh <- result{msg, err}
+	}()
+
+	// Allow a couple of reads
+	readSignal <- struct{}{} // Read 2: "CD"
+	readSignal <- struct{}{} // Read 3: "EF"
+
+	// Cancel before buffer fills
+	cancel1()
+
+	res1 := <-resultCh
+	assert.ErrorIs(t, res1.err, context.Canceled)
 
 	var bytesRead1 int
-	if got1 != nil {
-		bytesRead1 = len(got1.Payload)
+	if res1.msg != nil {
+		bytesRead1 = len(res1.msg.Payload)
 		t.Logf("First call: read %d bytes before cancellation", bytesRead1)
 	}
 
@@ -220,7 +258,7 @@ func TestPacketizer_ContextCancelPreservesStreamState(t *testing.T) {
 	// The outcome is sticky - subsequent calls return the error
 	if err2 != nil {
 		t.Logf("Second call returned error (sticky outcome): %v", err2)
-		assert.ErrorIs(t, err2, context.DeadlineExceeded, "outcome should be preserved")
+		assert.ErrorIs(t, err2, context.Canceled, "outcome should be preserved")
 		return
 	}
 

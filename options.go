@@ -73,8 +73,8 @@ func WithEncoding(e Encoding) Option {
 }
 
 // WithUpdateTransactionUUID sets the function to generate a new transaction
-// UUID for each packet.  This is optional.  If the function is not set, the
-// default value of nil is used.
+// UUID for each packet.  This is optional.  If not set, the TransactionUUID
+// from the input message is preserved in the output packets.
 //
 // This is useful for generating a new transaction UUID for each packet in the
 // stream for a request/response protocol.  The function should return a new
@@ -107,10 +107,6 @@ func finalize() Option {
 
 		if !s.encoding.isValid() {
 			return fmt.Errorf("%w: encoding is invalid", ErrInvalidInput)
-		}
-
-		if s.txGen == nil {
-			s.txGen = func() (string, error) { return "", nil }
 		}
 
 		return nil
