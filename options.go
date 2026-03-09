@@ -80,6 +80,9 @@ func WithEncoding(e Encoding) Option {
 // stream for a request/response protocol.  The function should return a new
 // transaction UUID and an error.  The error should be nil if the function
 // succeeds.
+//
+// If an error is returned, the Packetizer will stop processing and return
+// the error, instead of the packet.
 func WithUpdateTransactionUUID(fn func() (string, error)) Option {
 	return optionFunc(func(s *Packetizer) error {
 		s.txGen = fn
@@ -87,7 +90,7 @@ func WithUpdateTransactionUUID(fn func() (string, error)) Option {
 	})
 }
 
-// validate ensures that the stream is valid before returning it.
+// finalize ensures that the stream is valid before returning it.
 func finalize() Option {
 	return optionFunc(func(s *Packetizer) error {
 		if s.stream == nil {
@@ -104,6 +107,10 @@ func finalize() Option {
 
 		if !s.encoding.isValid() {
 			return fmt.Errorf("%w: encoding is invalid", ErrInvalidInput)
+		}
+
+		if s.txGen == nil {
+			s.txGen = func() (string, error) { return "", nil }
 		}
 
 		return nil

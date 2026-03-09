@@ -10,12 +10,14 @@ import (
 )
 
 var (
-	ErrInvalidInput = errors.New("invalid input")
-	ErrClosed       = errors.New("closed")
+	ErrInvalidInput      = errors.New("invalid input")
+	ErrClosed            = errors.New("closed")
+	ErrPacketGapExceeded = errors.New("packet gap exceeded")
 )
 
 type unexpectedEOF struct {
-	message string
+	message    string
+	messageErr error
 }
 
 func (e *unexpectedEOF) Error() string {
@@ -29,6 +31,33 @@ func (e *unexpectedEOF) Is(target error) bool {
 func (e *unexpectedEOF) Unwrap() []error {
 	return []error{
 		io.ErrUnexpectedEOF,
-		errors.New(e.message),
+		e.messageErr,
 	}
+}
+
+// newUnexpectedEOF creates a new unexpectedEOF error with the given message.
+func newUnexpectedEOF(message string) *unexpectedEOF {
+	return &unexpectedEOF{
+		message:    message,
+		messageErr: errors.New(message),
+	}
+}
+
+type packetGapExceeded struct {
+	current  int64
+	received int64
+	maxGap   int
+}
+
+func (e *packetGapExceeded) Error() string {
+	return fmt.Sprintf("%s: received packet %d while at %d (gap %d > max %d)",
+		ErrPacketGapExceeded.Error(), e.received, e.current, e.received-e.current, e.maxGap)
+}
+
+func (e *packetGapExceeded) Is(target error) bool {
+	return errors.Is(target, ErrPacketGapExceeded)
+}
+
+func (e *packetGapExceeded) Unwrap() error {
+	return ErrPacketGapExceeded
 }
