@@ -145,6 +145,5 @@ func Example_requestResponse() {
 	// Transaction ID: tid-3
 	// Transaction ID: tid-4
 	// Transaction ID: tid-5
-	// Transaction ID: tid-6
 	// This is an example of how to use the wrpssp package with a request/response.
 }

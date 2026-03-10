@@ -73,13 +73,16 @@ func WithEncoding(e Encoding) Option {
 }
 
 // WithUpdateTransactionUUID sets the function to generate a new transaction
-// UUID for each packet.  This is optional.  If the function is not set, the
-// default value of nil is used.
+// UUID for each packet.  This is optional.  If not set, the TransactionUUID
+// from the input message is preserved in the output packets.
 //
 // This is useful for generating a new transaction UUID for each packet in the
 // stream for a request/response protocol.  The function should return a new
 // transaction UUID and an error.  The error should be nil if the function
 // succeeds.
+//
+// If an error is returned, the Packetizer will stop processing and return
+// the error, instead of the packet.
 func WithUpdateTransactionUUID(fn func() (string, error)) Option {
 	return optionFunc(func(s *Packetizer) error {
 		s.txGen = fn
@@ -87,7 +90,7 @@ func WithUpdateTransactionUUID(fn func() (string, error)) Option {
 	})
 }
 
-// validate ensures that the stream is valid before returning it.
+// finalize ensures that the stream is valid before returning it.
 func finalize() Option {
 	return optionFunc(func(s *Packetizer) error {
 		if s.stream == nil {

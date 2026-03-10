@@ -21,7 +21,6 @@ type Packetizer struct {
 	encoding            Encoding
 	txGen               func() (string, error)
 	estimatedSize       uint64
-	finalPacket         string
 	outcome             error
 }
 
@@ -58,76 +57,119 @@ func New(opts ...Option) (*Packetizer, error) {
 // the stream is exhausted.  Other errors may be returned if those are
 // encountered during the processing.
 func (p *Packetizer) Next(ctx context.Context, msg wrp.Message, validators ...wrp.Processor) (*wrp.Message, error) {
-	ssm, err := p.nextRaw(ctx, msg)
-	if ssm == nil {
-		return nil, err
+	// Check outcome first so sticky stream state takes precedence over context
+	if p.outcome != nil {
+		return nil, p.outcome
 	}
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	var tx string
+	var err error
+	if p.txGen != nil {
+		tx, err = p.txGen()
+		if err != nil {
+			p.outcome = err
+			return nil, err
+		}
+	}
+
+	ssm := p.nextRaw(ctx, tx, msg)
 
 	var out wrp.Message
 	if err := ssm.To(&out, validators...); err != nil {
 		return nil, err
 	}
 
-	return &out, err
+	return &out, p.outcome
 }
 
-func (p *Packetizer) nextRaw(ctx context.Context, msg ...wrp.Message) (*simpleStreamingMessage, error) {
-	if p.outcome != nil {
-		return nil, p.outcome
-	}
-
-	buf := make([]byte, p.maxPacketSize)
-	var err error
-	var n int
-	for n == 0 && err == nil {
-		select {
-		case <-ctx.Done():
-			err = ctx.Err()
-			p.finalPacket = err.Error()
-		default:
-			n, err = p.stream.Read(buf)
-		}
-	}
-
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			p.finalPacket = "EOF"
-		} else {
-			p.finalPacket = err.Error()
-		}
-		p.outcome = err
-	}
+func (p *Packetizer) nextRaw(ctx context.Context, tx string, msg wrp.Message) *simpleStreamingMessage {
+	buf, err := p.readChunk(ctx)
 
 	var out simpleStreamingMessage
 
-	if len(msg) > 0 {
-		out.Message = msg[0]
-	}
+	out.Message = msg
 
-	out.Payload = nil
-	if n > 0 {
-		out.Payload, err = p.encoding.encode(buf[:n])
-		if err != nil {
-			p.finalPacket = err.Error()
-			p.outcome = err
-		}
-	}
+	p.outcome = err
 
 	out.StreamID = p.id
 	out.StreamPacketNumber = p.currentPacketNumber
 	out.StreamEstimatedLength = p.estimatedSize
-	out.StreamFinalPacket = p.finalPacket
-	out.StreamEncoding = p.encoding
+	out.StreamFinalPacket = p.outcomeToString()
+	if tx != "" {
+		out.TransactionUUID = tx
+	}
+	out.Payload = buf
 
 	p.currentPacketNumber++
 
-	if p.txGen != nil {
-		txID, err := p.txGen()
-		if err != nil {
-			return nil, err
-		}
-		out.TransactionUUID = txID
+	p.compress(&out)
+
+	return &out
+}
+
+// outcomeToString converts the current outcome error into its string
+// representation for inclusion in the WRP message.  If there is no outcome, an
+// empty string is returned.
+func (p *Packetizer) outcomeToString() string {
+	switch {
+	case p.outcome == nil:
+		return ""
+	case errors.Is(p.outcome, io.EOF):
+		return "EOF"
+	default:
+		return p.outcome.Error()
+	}
+}
+
+// compress applies the configured encoding to the message payload if it can.
+// If encoding fails, the Packetizer falls back to identity encoding for this
+// and all subsequent packets to avoid repeated compression failures.
+func (p *Packetizer) compress(msg *simpleStreamingMessage) {
+	if msg == nil || len(msg.Payload) == 0 {
+		return
 	}
 
-	return &out, p.outcome
+	// Skip compression if already using identity encoding
+	if p.encoding == EncodingIdentity {
+		msg.StreamEncoding = EncodingIdentity
+		return
+	}
+
+	payload, err := p.encoding.encode(msg.Payload)
+	if err != nil {
+		// On encoding error, fall back to identity encoding for all subsequent packets
+		p.encoding = EncodingIdentity
+		msg.StreamEncoding = EncodingIdentity
+		return
+	}
+
+	msg.StreamEncoding = p.encoding
+	msg.Payload = payload
+}
+
+func (p *Packetizer) readChunk(ctx context.Context) ([]byte, error) {
+	buf := make([]byte, p.maxPacketSize)
+	var got int
+	var err error
+
+	// Read until buffer full or error
+	for err == nil && got < len(buf) {
+		if ctx.Err() != nil {
+			return buf[:got], ctx.Err()
+		}
+
+		var n int
+		n, err = p.stream.Read(buf[got:])
+		got += n
+
+		// Detect buggy readers that return (0, nil) without making progress
+		if n == 0 && err == nil {
+			return buf[:got], io.ErrNoProgress
+		}
+	}
+	return buf[:got], err
 }

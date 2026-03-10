@@ -8,6 +8,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,8 @@ func TestEnd2End(t *testing.T) {
 		TransactionUUID: "test",
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
 
 	assembler := &wrpssp.Assembler{}
 
@@ -41,11 +43,13 @@ func TestEnd2End(t *testing.T) {
 		var err error
 		for err == nil {
 			var msg *wrp.Message
-
 			msg, err = p.Next(ctx, dest)
-
-			_ = assembler.ProcessWRP(ctx, *msg)
+			if msg != nil {
+				// Process message even if there's an error (final packet has EOF in headers)
+				_ = assembler.ProcessWRP(ctx, *msg)
+			}
 		}
+		_ = assembler.Close()
 	}()
 
 	got, err := io.ReadAll(assembler)
