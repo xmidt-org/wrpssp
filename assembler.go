@@ -59,6 +59,11 @@ func (a *Assembler) init() {
 func (a *Assembler) Read(p []byte) (int, error) {
 	a.init()
 
+	// Per io.Reader contract, zero-length reads must return immediately
+	if len(p) == 0 {
+		return 0, nil
+	}
+
 	var offset int
 	for {
 		a.m.Lock()

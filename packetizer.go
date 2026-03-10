@@ -126,16 +126,23 @@ func (p *Packetizer) outcomeToString() string {
 }
 
 // compress applies the configured encoding to the message payload if it can.
-// If encoding fails, the message is left unencoded and the encoding is set to
-// identity (none).
+// If encoding fails, the Packetizer falls back to identity encoding for this
+// and all subsequent packets to avoid repeated compression failures.
 func (p *Packetizer) compress(msg *simpleStreamingMessage) {
 	if msg == nil || len(msg.Payload) == 0 {
 		return
 	}
 
+	// Skip compression if already using identity encoding
+	if p.encoding == EncodingIdentity {
+		msg.StreamEncoding = EncodingIdentity
+		return
+	}
+
 	payload, err := p.encoding.encode(msg.Payload)
 	if err != nil {
-		// On encoding error, fall back to identity (none) encoding
+		// On encoding error, fall back to identity encoding for all subsequent packets
+		p.encoding = EncodingIdentity
 		msg.StreamEncoding = EncodingIdentity
 		return
 	}

@@ -65,8 +65,8 @@ func (sr *slowReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// TestPacketizer_ContextCancelDuringRead specifically tests line 147 in readChunk()
-// where context cancellation is checked mid-loop after partial data has been read.
+// TestPacketizer_ContextCancelDuringRead tests that when context is cancelled during
+// readChunk's read loop, the function returns partial data along with the cancellation error.
 func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 	t.Run("context cancelled after partial read returns partial data", func(t *testing.T) {
 		// Setup: Create a slow reader that will trigger context cancellation mid-read
