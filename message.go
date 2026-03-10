@@ -143,15 +143,9 @@ func (ssm *simpleStreamingMessage) from(headers map[string]string) error {
 			}
 			ssm.StreamPacketNumber = i
 		case stream_estimated_length:
-			zero, value := isZero(value)
-			if zero || value == "" {
-				ssm.StreamEstimatedLength = 0
-				break
-			}
-
-			i, err := strconv.ParseUint(value, 10, 64)
+			i, err := parseEstimatedLength(value)
 			if err != nil {
-				return errors.Join(ErrInvalidInput, err)
+				return err
 			}
 			ssm.StreamEstimatedLength = i
 		case stream_final_packet:
@@ -197,6 +191,20 @@ func (ssm *simpleStreamingMessage) headers() []string {
 	}
 
 	return headers
+}
+
+func parseEstimatedLength(s string) (uint64, error) {
+	zero, s := isZero(s)
+	if zero || s == "" {
+		return 0, nil
+	}
+
+	i, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, errors.Join(ErrInvalidInput, err)
+	}
+
+	return i, nil
 }
 
 // treat the value as zero if it is empty or "0" or with any number of "0" characters
@@ -247,9 +255,29 @@ func split(headers []string) (map[string]string, []string) {
 	return result, others
 }
 
+// GetEstimatedLength returns the estimated total length of the stream if the
+// message is an SSP message with the stream-estimated-total-length header.
+// There is only minimal validation done since this is a function used to
+// get the estimated length quickly.  For a more thorough validation, use
+// the Is() method in this package.
+func GetEstimatedLength(msg wrp.Message) (uint64, error) {
+	if msg.Type != wrp.SimpleEventMessageType {
+		return 0, wrp.ErrNotHandled
+	}
+
+	mine, _ := split(msg.Headers)
+	val, ok := mine[stream_estimated_length]
+	if !ok {
+		return 0, ErrNotAvailable
+	}
+
+	return parseEstimatedLength(val)
+}
+
 // GetStreamID returns the stream ID of the message if it is an SSP message.
 // There is only minimal validation done since this is a function used to
-// sort messages quickly.
+// get the stream ID quickly.  For a more thorough validation, use the Is()
+// method in this package.
 func GetStreamID(msg wrp.Message) (string, error) {
 	if msg.Type != wrp.SimpleEventMessageType {
 		return "", wrp.ErrNotHandled

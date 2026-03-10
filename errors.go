@@ -10,9 +10,19 @@ import (
 )
 
 var (
-	ErrInvalidInput      = errors.New("invalid input")
-	ErrClosed            = errors.New("closed")
+	// ErrInvalidInput is returned when the input to a function is invalid.
+	ErrInvalidInput = errors.New("invalid input")
+
+	// ErrClosed is returned when an operation is attempted on a closed stream.
+	ErrClosed = errors.New("closed")
+
+	// ErrPacketGapExceeded is returned when a packet is received that is too
+	// far ahead of the current packet.
 	ErrPacketGapExceeded = errors.New("packet gap exceeded")
+
+	// ErrNotAvailable is returned to indicate that the requested information is
+	// not available.
+	ErrNotAvailable = errors.New("information not available")
 )
 
 type unexpectedEOF struct {
