@@ -156,6 +156,11 @@ func (p *Packetizer) readChunk(ctx context.Context) ([]byte, error) {
 		var n int
 		n, err = p.stream.Read(buf[got:])
 		got += n
+
+		// Detect buggy readers that return (0, nil) without making progress
+		if n == 0 && err == nil {
+			return buf[:got], io.ErrNoProgress
+		}
 	}
 	return buf[:got], err
 }

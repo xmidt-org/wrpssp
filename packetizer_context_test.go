@@ -6,6 +6,7 @@ package wrpssp
 import (
 	"context"
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,11 +22,11 @@ type slowReader struct {
 	data      []byte
 	offset    int
 	chunkSize int
-	readCount int
 	// readSignal is an optional channel to signal when each read should proceed.
 	// If nil, reads proceed immediately. If set, reads after the first will block
 	// waiting for a signal before returning data.
 	readSignal chan struct{}
+	once       sync.Once
 }
 
 func (sr *slowReader) Read(p []byte) (int, error) {
@@ -34,10 +35,14 @@ func (sr *slowReader) Read(p []byte) (int, error) {
 	}
 
 	// Wait for signal after first read (if signal channel is configured)
-	if sr.readCount > 0 && sr.readSignal != nil {
+	// Use sync.Once to skip the wait on the first call without races
+	first := true
+	sr.once.Do(func() {
+		first = false
+	})
+	if first && sr.readSignal != nil {
 		<-sr.readSignal
 	}
-	sr.readCount++
 
 	// Return data in small chunks
 	chunkSize := sr.chunkSize

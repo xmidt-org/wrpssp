@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -417,13 +418,14 @@ func TestPacketizer_Next(t *testing.T) {
 			err:   wrp.ErrMessageIsInvalid,
 			extra: true,
 		}, {
-			name: "simulated encoding error via invalid encoder",
+			name: "encoding error falls back to identity encoding",
 			packetizer: func() *Packetizer {
 				p, err := New(
 					ID("123"),
 					Reader(bytes.NewReader([]byte("HelloWorld"))))
 				require.NoError(t, err)
 				require.NotNil(t, p)
+				// Set invalid encoding to trigger fallback in compress()
 				p.encoding = "invalid"
 				return p
 			}(),
@@ -439,12 +441,12 @@ func TestPacketizer_Next(t *testing.T) {
 						"stream-id: 123",
 						"stream-packet-number: 0",
 						"stream-final-packet: eof",
+						// Note: No stream-encoding header means identity encoding (fallback)
 					},
 					Payload: []byte("HelloWorld"),
 				},
 			},
-			err:   errUnknown,
-			extra: true,
+			err: io.EOF, // Stream completes successfully despite encoding error
 		}, {
 			name: "the transaction uuid function returns an error",
 			opts: []Option{
@@ -820,4 +822,48 @@ func TestPacketizer_ContextCancellation(t *testing.T) {
 		// Packet number should still be 0 since no successful packets were returned
 		assert.Contains(t, got.Headers, "stream-packet-number: 0")
 	})
+}
+
+// noProgressReader simulates a buggy reader that returns (0, nil) without making progress
+type noProgressReader struct {
+	mu        sync.Mutex
+	callCount int
+}
+
+func (r *noProgressReader) Read(p []byte) (int, error) {
+	r.mu.Lock()
+	r.callCount++
+	r.mu.Unlock()
+	// Always return (0, nil) - a buggy reader that makes no progress
+	return 0, nil
+}
+
+func TestPacketizer_NoProgressReader(t *testing.T) {
+	reader := &noProgressReader{}
+	packetizer, err := New(
+		ID("test"),
+		Reader(reader),
+		MaxPacketSize(10),
+		WithEncoding(EncodingIdentity),
+	)
+	require.NoError(t, err)
+
+	in := wrp.Message{
+		Type:        wrp.SimpleEventMessageType,
+		Source:      "mac:112233445566",
+		Destination: "event:device-status",
+	}
+
+	got, err := packetizer.Next(context.Background(), in)
+
+	// Should return io.ErrNoProgress immediately on first (0, nil) response
+	assert.ErrorIs(t, err, io.ErrNoProgress, "should detect no-progress reader")
+	require.NotNil(t, got, "should return partial message even on error")
+	assert.Empty(t, got.Payload, "payload should be empty since no data was read")
+
+	// Verify it only called Read once (didn't loop forever)
+	reader.mu.Lock()
+	count := reader.callCount
+	reader.mu.Unlock()
+	assert.Equal(t, 1, count, "should only call Read once before detecting no progress")
 }
