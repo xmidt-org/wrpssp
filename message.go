@@ -258,7 +258,8 @@ func split(headers []string) (map[string]string, []string) {
 // GetEstimatedLength returns the estimated total length of the stream if the
 // message is an SSP message with the stream-estimated-total-length header.
 // There is only minimal validation done since this is a function used to
-// sort messages quickly.
+// get the estimated length quickly.  For a more thorough validation, use
+// the Is() method in this package.
 func GetEstimatedLength(msg wrp.Message) (uint64, error) {
 	if msg.Type != wrp.SimpleEventMessageType {
 		return 0, wrp.ErrNotHandled
@@ -275,7 +276,8 @@ func GetEstimatedLength(msg wrp.Message) (uint64, error) {
 
 // GetStreamID returns the stream ID of the message if it is an SSP message.
 // There is only minimal validation done since this is a function used to
-// sort messages quickly.
+// get the stream ID quickly.  For a more thorough validation, use the Is()
+// method in this package.
 func GetStreamID(msg wrp.Message) (string, error) {
 	if msg.Type != wrp.SimpleEventMessageType {
 		return "", wrp.ErrNotHandled
