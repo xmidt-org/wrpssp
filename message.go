@@ -14,12 +14,6 @@ import (
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
-var (
-	// ErrNotAvailable is returned to indicate that the requested information is
-	// not available.
-	ErrNotAvailable = errors.New("information not available")
-)
-
 const (
 	// These are the string literals found in the messages.
 	stream_id               = "stream-id"
