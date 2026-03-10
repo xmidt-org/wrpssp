@@ -537,6 +537,102 @@ func TestMessageIs(t *testing.T) {
 	}
 }
 
+func TestGetEstimatedLength(t *testing.T) {
+	tests := []struct {
+		name       string
+		msg        wrp.Message
+		wantLength uint64
+		wantErr    error
+	}{
+		{
+			name: "Valid estimated length",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-estimated-total-length: 1024",
+				},
+			},
+			wantLength: 1024,
+		}, {
+			name: "Zero estimated length",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-estimated-total-length: 0",
+				},
+			},
+			wantLength: 0,
+		}, {
+			name: "Leading zeros",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-estimated-total-length: 000100",
+				},
+			},
+			wantLength: 100,
+		}, {
+			name: "Non-SSP message type",
+			msg: wrp.Message{
+				Type: wrp.SimpleRequestResponseMessageType,
+			},
+			wantErr: wrp.ErrNotHandled,
+		}, {
+			name: "Missing header",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-id: test",
+				},
+			},
+			wantErr: ErrNotAvailable,
+		}, {
+			name: "Invalid value",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-estimated-total-length: invalid",
+				},
+			},
+			wantErr: ErrInvalidInput,
+		}, {
+			name: "Negative value",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-estimated-total-length: -5",
+				},
+			},
+			wantErr: ErrInvalidInput,
+		}, {
+			name: "Float value",
+			msg: wrp.Message{
+				Type: wrp.SimpleEventMessageType,
+				Headers: []string{
+					"stream-estimated-total-length: 12.5",
+				},
+			},
+			wantErr: ErrInvalidInput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotLength, err := GetEstimatedLength(tt.msg)
+
+			if tt.wantErr != nil {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.Zero(t, gotLength)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantLength, gotLength)
+		})
+	}
+}
+
 func TestGetStreamID(t *testing.T) {
 	someErr := fmt.Errorf("some error")
 	tests := []struct {
