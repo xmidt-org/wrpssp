@@ -90,6 +90,19 @@ func TestAssembler_Read(t *testing.T) {
 			bufSize:  10,
 			expected: []string{"Hello"},
 			finalErr: io.ErrUnexpectedEOF,
+		}, {
+			name: "final packet larger than buffer - multiple reads required",
+			blocks: map[int64]*simpleStreamingMessage{
+				0: {
+					StreamFinalPacket: "EOF",
+					Message: wrp.Message{
+						Payload: []byte("ABCDEFGHIJKLMNOP"), // 16 bytes
+					},
+				},
+			},
+			bufSize:  5, // Small buffer forces multiple reads
+			expected: []string{"ABCDE", "FGHIJ", "KLMNO", "P"},
+			finalErr: io.EOF,
 		},
 	}
 

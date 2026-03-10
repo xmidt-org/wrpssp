@@ -117,7 +117,13 @@ func (a *Assembler) read(p []byte) (int, error) {
 	// Process packet: copy data and handle completion
 	n := a.processPacket(packet, buf, p)
 
-	// Return data with final state error if present
+	// Only return final error after the final packet is fully consumed
+	// This ensures callers don't truncate partial reads of the final packet
+	if n > 0 && a.final != nil && a.packets[a.current] != nil {
+		// Still have data in current packet - defer error until next read
+		return n, nil
+	}
+
 	return n, a.final
 }
 
