@@ -57,12 +57,13 @@ func New(opts ...Option) (*Packetizer, error) {
 // the stream is exhausted.  Other errors may be returned if those are
 // encountered during the processing.
 func (p *Packetizer) Next(ctx context.Context, msg wrp.Message, validators ...wrp.Processor) (*wrp.Message, error) {
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-
+	// Check outcome first so sticky stream state takes precedence over context
 	if p.outcome != nil {
 		return nil, p.outcome
+	}
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	var tx string
@@ -70,6 +71,7 @@ func (p *Packetizer) Next(ctx context.Context, msg wrp.Message, validators ...wr
 	if p.txGen != nil {
 		tx, err = p.txGen()
 		if err != nil {
+			p.outcome = err
 			return nil, err
 		}
 	}

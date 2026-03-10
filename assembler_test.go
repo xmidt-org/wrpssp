@@ -94,6 +94,7 @@ func TestAssembler_Read(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -201,6 +202,7 @@ func TestAssembler_CloseWithGap(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -276,6 +278,7 @@ func TestAssembler_ProcessWRP_PacketGap(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -544,6 +547,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
