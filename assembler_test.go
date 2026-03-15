@@ -160,6 +160,17 @@ func TestAssembler_Close(t *testing.T) {
 	assert.True(t, assembler.closed)
 }
 
+func TestAssembler_CloseWithoutOtherCalls(t *testing.T) {
+	// Verify that calling Close() on a zero-value Assembler properly
+	// initializes internal state before closing.
+	var a Assembler
+	err := a.Close()
+	assert.NoError(t, err)
+	assert.True(t, a.closed)
+	assert.NotNil(t, a.event, "Close() should initialize the event channel")
+	assert.NotNil(t, a.packets, "Close() should initialize the packets map")
+}
+
 func TestAssembler_CloseWithGap(t *testing.T) {
 	t.Parallel()
 
