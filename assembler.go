@@ -228,6 +228,8 @@ func (a *Assembler) getPacket(n int64) (*simpleStreamingMessage, []byte, error) 
 
 // Close closes the Assembler and implements the io.Closer interface.
 func (a *Assembler) Close() error {
+	a.init()
+
 	a.m.Lock()
 	defer a.m.Unlock()
 
