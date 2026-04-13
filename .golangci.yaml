@@ -21,6 +21,7 @@ linters:
       errorf: false
     goconst:
       min-occurrences: 4
+      min-len: 5
     misspell:
       locale: US
   exclusions:

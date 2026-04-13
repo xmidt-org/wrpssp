@@ -65,10 +65,10 @@ func (sr *slowReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// TestPacketizer_ContextCancelDuringRead tests that when context is cancelled during
+// TestPacketizer_ContextCancelDuringRead tests that when context is canceled during
 // readChunk's read loop, the function returns partial data along with the cancellation error.
 func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
-	t.Run("context cancelled after partial read returns partial data", func(t *testing.T) {
+	t.Run("context canceled after partial read returns partial data", func(t *testing.T) {
 		// Setup: Create a slow reader that will trigger context cancellation mid-read
 		input := []byte("ABCDEFGHIJKLMNOP") // 16 bytes
 		readSignal := make(chan struct{})
@@ -92,7 +92,7 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 			Destination: "event:test",
 		}
 
-		// Create context that will be cancelled manually
+		// Create context that will be canceled manually
 		ctx, cancel := context.WithCancel(context.Background())
 
 		// Start the read in a goroutine
@@ -136,8 +136,8 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 		assert.Equal(t, input[:len(res.msg.Payload)], res.msg.Payload, "partial data should be correct prefix of input")
 	})
 
-	t.Run("context cancelled immediately returns empty data", func(t *testing.T) {
-		// Test edge case: context already cancelled before any read
+	t.Run("context canceled immediately returns empty data", func(t *testing.T) {
+		// Test edge case: context already canceled before any read
 		input := []byte("ABCDEFGHIJKLMNOP")
 
 		packetizer, err := New(
@@ -168,7 +168,7 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 	})
 
 	t.Run("full buffer read completes before context cancel", func(t *testing.T) {
-		// Test that if buffer fills in one read, we get the data even if context is cancelled
+		// Test that if buffer fills in one read, we get the data even if context is canceled
 		input := []byte("ABCDEFGHIJ") // Exactly 10 bytes
 
 		packetizer, err := New(
@@ -185,7 +185,7 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 			Destination: "event:test",
 		}
 
-		// Context that gets cancelled, but the read completes first
+		// Context that gets canceled, but the read completes first
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 

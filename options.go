@@ -38,7 +38,7 @@ func EstimatedLength(size int64) Option {
 		if size < 1 {
 			size = 0
 		}
-		s.estimatedSize = uint64(size)
+		s.estimatedSize = uint64(size) // nolint:gosec
 		return nil
 	})
 }

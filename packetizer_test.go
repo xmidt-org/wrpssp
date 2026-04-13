@@ -473,7 +473,7 @@ func TestPacketizer_Next(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			if tt.err == context.Canceled {
+			if errors.Is(tt.err, context.Canceled) {
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithCancel(ctx)
 				cancel()
@@ -486,7 +486,7 @@ func TestPacketizer_Next(t *testing.T) {
 			} else {
 				var err error
 				packetizer, err = New(tt.opts...)
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.NotNil(t, packetizer)
 			}
 
@@ -789,7 +789,7 @@ func TestPacketizer_ContextCancellation(t *testing.T) {
 		assert.Contains(t, got.Headers, "stream-final-packet: eof")
 	})
 
-	t.Run("multiple cancelled contexts do not affect stream", func(t *testing.T) {
+	t.Run("multiple canceled contexts do not affect stream", func(t *testing.T) {
 		packetizer, err := New(
 			ID("456"),
 			Reader(bytes.NewReader([]byte("TestData"))),
