@@ -108,7 +108,7 @@ func Example_requestResponse() {
 			Type:        wrp.SimpleRequestResponseMessageType,
 			Source:      "self:",
 			Destination: "event:foo",
-			//TransactionUUID is automatically set by the packetizer.
+			// TransactionUUID is automatically set by the packetizer.
 		})
 
 		if err != nil && !errors.Is(err, io.EOF) {

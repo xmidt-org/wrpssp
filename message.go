@@ -6,6 +6,7 @@ package wrpssp
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -70,7 +71,7 @@ func (ssm *simpleStreamingMessage) To(msg *wrp.Message, validators ...wrp.Proces
 	_, others := split(ssm.Headers)
 	ours := ssm.headers()
 
-	msg.Headers = append(others, ours...)
+	msg.Headers = slices.Concat(others, ours)
 
 	return nil
 }

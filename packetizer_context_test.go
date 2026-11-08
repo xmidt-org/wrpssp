@@ -121,14 +121,14 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 		res := <-resultCh
 
 		// Should get context.Canceled error
-		assert.ErrorIs(t, res.err, context.Canceled, "should return canceled error")
+		require.ErrorIs(t, res.err, context.Canceled, "should return canceled error")
 
 		// Should still get partial data (not nil)
 		require.NotNil(t, res.msg, "should return message even on context cancel")
 		assert.NotEmpty(t, res.msg.Payload, "should return partial data even on context cancel")
 
 		// Verify we got partial data (6 bytes from 3 reads before cancellation)
-		assert.Equal(t, 6, len(res.msg.Payload), "should have 6 bytes from 3 reads")
+		assert.Len(t, res.msg.Payload, 6, "should have 6 bytes from 3 reads")
 
 		t.Logf("Partial data received: %d bytes: %q", len(res.msg.Payload), string(res.msg.Payload))
 
@@ -161,7 +161,7 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 		got, err := packetizer.Next(ctx, in)
 
 		// Should get cancellation error
-		assert.ErrorIs(t, err, context.Canceled)
+		require.ErrorIs(t, err, context.Canceled)
 
 		// Should get nil (no data read yet)
 		assert.Nil(t, got)
@@ -192,7 +192,7 @@ func TestPacketizer_ContextCancelDuringRead(t *testing.T) {
 		got, err := packetizer.Next(ctx, in)
 
 		// Should succeed because buffer filled in one read (no context check mid-read)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, []byte("ABCDEFGHIJ"), got.Payload)
 	})
@@ -247,7 +247,7 @@ func TestPacketizer_ContextCancelPreservesStreamState(t *testing.T) {
 	cancel1()
 
 	res1 := <-resultCh
-	assert.ErrorIs(t, res1.err, context.Canceled)
+	require.ErrorIs(t, res1.err, context.Canceled)
 
 	var bytesRead1 int
 	if res1.msg != nil {

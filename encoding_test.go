@@ -215,7 +215,7 @@ func TestEncoding_Encode(t *testing.T) {
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
 			}
 		})
@@ -352,7 +352,7 @@ func TestEncoding_Decode(t *testing.T) {
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
 			}
 		})
@@ -385,10 +385,10 @@ func TestEncoding_EncodeDecode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			encodedData, err := tt.encoding.encode(tt.data)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			decodedData, err := tt.encoding.decode(encodedData)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.data, decodedData)
 		})

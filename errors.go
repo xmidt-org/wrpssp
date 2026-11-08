@@ -25,49 +25,49 @@ var (
 	ErrNotAvailable = errors.New("information not available")
 )
 
-type unexpectedEOF struct {
+type unexpectedEOFError struct {
 	message    string
 	messageErr error
 }
 
-func (e *unexpectedEOF) Error() string {
+func (e *unexpectedEOFError) Error() string {
 	return fmt.Sprintf("%s: %s", io.ErrUnexpectedEOF.Error(), e.message)
 }
 
-func (e *unexpectedEOF) Is(target error) bool {
+func (e *unexpectedEOFError) Is(target error) bool {
 	return errors.Is(target, io.ErrUnexpectedEOF)
 }
 
-func (e *unexpectedEOF) Unwrap() []error {
+func (e *unexpectedEOFError) Unwrap() []error {
 	return []error{
 		io.ErrUnexpectedEOF,
 		e.messageErr,
 	}
 }
 
-// newUnexpectedEOF creates a new unexpectedEOF error with the given message.
-func newUnexpectedEOF(message string) *unexpectedEOF {
-	return &unexpectedEOF{
+// newUnexpectedEOF creates a new unexpectedEOFError error with the given message.
+func newUnexpectedEOF(message string) *unexpectedEOFError {
+	return &unexpectedEOFError{
 		message:    message,
 		messageErr: errors.New(message),
 	}
 }
 
-type packetGapExceeded struct {
+type packetGapExceededError struct {
 	current  int64
 	received int64
 	maxGap   int
 }
 
-func (e *packetGapExceeded) Error() string {
+func (e *packetGapExceededError) Error() string {
 	return fmt.Sprintf("%s: received packet %d while at %d (gap %d > max %d)",
 		ErrPacketGapExceeded.Error(), e.received, e.current, e.received-e.current, e.maxGap)
 }
 
-func (e *packetGapExceeded) Is(target error) bool {
+func (e *packetGapExceededError) Is(target error) bool {
 	return errors.Is(target, ErrPacketGapExceeded)
 }
 
-func (e *packetGapExceeded) Unwrap() error {
+func (e *packetGapExceededError) Unwrap() error {
 	return ErrPacketGapExceeded
 }

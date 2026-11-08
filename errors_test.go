@@ -4,7 +4,6 @@
 package wrpssp
 
 import (
-	"errors"
 	"io"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestUnexpectedEOF_Error(t *testing.T) {
 
 func TestUnexpectedEOF_Is(t *testing.T) {
 	err := newUnexpectedEOF("custom message")
-	assert.True(t, errors.Is(err, io.ErrUnexpectedEOF))
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
 }
 
 func TestUnexpectedEOF_Unwrap(t *testing.T) {

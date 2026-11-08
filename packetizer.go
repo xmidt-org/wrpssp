@@ -29,7 +29,7 @@ type Packetizer struct {
 func New(opts ...Option) (*Packetizer, error) {
 	var file Packetizer
 
-	defaults := []Option{ // nolint:prealloc
+	defaults := []Option{ //nolint:prealloc // slice is appended to below with a variable number of items
 		MaxPacketSize(0),
 		EstimatedLength(0),
 		WithEncoding(EncodingGzip),

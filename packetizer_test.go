@@ -91,9 +91,9 @@ func TestNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p, err := New(tt.opts...)
 			if tt.err != nil {
-				assert.True(t, errors.Is(err, tt.err))
+				assert.ErrorIs(t, err, tt.err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected.id, p.id)
 				assert.Equal(t, tt.expected.estimatedSize, p.estimatedSize)
 				assert.Equal(t, tt.expected.maxPacketSize, p.maxPacketSize)
@@ -509,16 +509,16 @@ func TestPacketizer_Next(t *testing.T) {
 				}
 
 				if i < len(tt.expected)-1 {
-					assert.NoError(t, err, "message %d should not error", i)
+					require.NoError(t, err, "message %d should not error", i)
 					continue
 				}
 
 				if tt.err == nil {
-					assert.NoError(t, err, "message %d should have no error", i)
+					require.NoError(t, err, "message %d should have no error", i)
 				} else {
-					assert.Error(t, err, "message %d should have error", i)
+					require.Error(t, err, "message %d should have error", i)
 					if !errors.Is(tt.err, errUnknown) {
-						assert.ErrorIs(t, err, tt.err, "message %d should have correct error", i)
+						require.ErrorIs(t, err, tt.err, "message %d should have correct error", i)
 					}
 				}
 			}
@@ -526,7 +526,7 @@ func TestPacketizer_Next(t *testing.T) {
 			if tt.extra {
 				got, err := packetizer.Next(ctx, tt.in)
 				assert.Empty(t, got)
-				assert.Error(t, err)
+				require.Error(t, err)
 				if !errors.Is(tt.err, errUnknown) {
 					assert.ErrorIs(t, err, tt.err)
 				}
@@ -632,7 +632,7 @@ func TestPacketizer_FrameBoundaryAlignment(t *testing.T) {
 
 			// Verify each payload (except last) is exactly maxPacketSize
 			for i, payload := range payloads[:len(payloads)-1] {
-				assert.Equal(t, tt.maxPacketSize, len(payload),
+				assert.Len(t, payload, tt.maxPacketSize,
 					"packet %d should be exactly maxPacketSize", i)
 			}
 		})
@@ -658,12 +658,12 @@ func TestPacketizer_FrameBoundaryAfterContextCancel(t *testing.T) {
 	}
 
 	// Cancel context a few times before reading
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		got, err := packetizer.Next(ctx, in)
 		assert.Nil(t, got)
-		assert.ErrorIs(t, err, context.Canceled)
+		require.ErrorIs(t, err, context.Canceled)
 	}
 
 	// Now read all packets and verify alignment
@@ -685,7 +685,7 @@ func TestPacketizer_FrameBoundaryAfterContextCancel(t *testing.T) {
 
 	// Verify packet boundaries: ABCDE, FGHIJ, KLMNO, PQRST, UVWXY, Z
 	expected := []string{"ABCDE", "FGHIJ", "KLMNO", "PQRST", "UVWXY", "Z"}
-	require.Equal(t, len(expected), len(payloads))
+	require.Len(t, payloads, len(expected))
 	for i, exp := range expected {
 		assert.Equal(t, exp, string(payloads[i]), "packet %d content", i)
 	}
@@ -731,13 +731,13 @@ func TestPacketizer_ContextCancellation(t *testing.T) {
 
 		// Read first packet successfully
 		got, err := packetizer.Next(context.Background(), in)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, []byte("Hello"), got.Payload)
 
 		// Read second packet successfully
 		got, err = packetizer.Next(context.Background(), in)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, []byte("World"), got.Payload)
 	})
@@ -764,11 +764,11 @@ func TestPacketizer_ContextCancellation(t *testing.T) {
 		// Should return nil, context.Canceled
 		got, err := packetizer.Next(ctx, in)
 		assert.Nil(t, got)
-		assert.ErrorIs(t, err, context.Canceled)
+		require.ErrorIs(t, err, context.Canceled)
 
 		// Stream should still be usable - call Next with valid context
 		got, err = packetizer.Next(context.Background(), in)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, []byte("Hello"), got.Payload)
 		assert.Equal(t, []string{
@@ -778,13 +778,13 @@ func TestPacketizer_ContextCancellation(t *testing.T) {
 
 		// Continue reading the rest
 		got, err = packetizer.Next(context.Background(), in)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, got)
 		assert.Equal(t, []byte("World"), got.Payload)
 
 		// Final packet
 		got, err = packetizer.Next(context.Background(), in)
-		assert.ErrorIs(t, err, io.EOF)
+		require.ErrorIs(t, err, io.EOF)
 		assert.NotNil(t, got)
 		assert.Contains(t, got.Headers, "stream-final-packet: eof")
 	})
@@ -805,17 +805,17 @@ func TestPacketizer_ContextCancellation(t *testing.T) {
 		}
 
 		// Cancel multiple times
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			got, err := packetizer.Next(ctx, in)
 			assert.Nil(t, got)
-			assert.ErrorIs(t, err, context.Canceled)
+			require.ErrorIs(t, err, context.Canceled)
 		}
 
 		// Stream should still work
 		got, err := packetizer.Next(context.Background(), in)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, []byte("Test"), got.Payload)
 
@@ -857,7 +857,7 @@ func TestPacketizer_NoProgressReader(t *testing.T) {
 	got, err := packetizer.Next(context.Background(), in)
 
 	// Should return io.ErrNoProgress immediately on first (0, nil) response
-	assert.ErrorIs(t, err, io.ErrNoProgress, "should detect no-progress reader")
+	require.ErrorIs(t, err, io.ErrNoProgress, "should detect no-progress reader")
 	require.NotNil(t, got, "should return partial message even on error")
 	assert.Empty(t, got.Payload, "payload should be empty since no data was read")
 

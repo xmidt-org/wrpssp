@@ -5,10 +5,10 @@ package wrpssp
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmidt-org/wrp-go/v5"
 )
 
@@ -86,12 +86,12 @@ func TestSimpleStreamingMessage_From(t *testing.T) {
 			err := ssm.From(&tt.msg)
 
 			if err == nil {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.wantSSM, ssm)
 				return
 			}
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.ErrorIs(t, err, tt.wantErr)
 		})
 	}
@@ -229,12 +229,12 @@ func TestSimpleStreamingMessage_InnerFrom(t *testing.T) {
 			err := ssm.from(tt.headers)
 
 			if tt.err == nil {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.want, ssm)
 				return
 			}
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.ErrorIs(t, err, tt.err)
 		})
 	}
@@ -621,20 +621,20 @@ func TestGetEstimatedLength(t *testing.T) {
 			gotLength, err := GetEstimatedLength(tt.msg)
 
 			if tt.wantErr != nil {
-				assert.Error(t, err)
-				assert.ErrorIs(t, err, tt.wantErr)
+				require.Error(t, err)
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Zero(t, gotLength)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantLength, gotLength)
 		})
 	}
 }
 
 func TestGetStreamID(t *testing.T) {
-	someErr := fmt.Errorf("some error")
+	someErr := errors.New("some error")
 	tests := []struct {
 		name    string
 		msg     wrp.Message
@@ -688,15 +688,15 @@ func TestGetStreamID(t *testing.T) {
 			gotID, err := GetStreamID(tt.msg)
 
 			if tt.wantErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if !errors.Is(tt.wantErr, someErr) {
-					assert.ErrorIs(t, err, tt.wantErr)
+					require.ErrorIs(t, err, tt.wantErr)
 				}
 				assert.Empty(t, gotID)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantID, gotID)
 		})
 	}

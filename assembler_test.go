@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmidt-org/wrp-go/v5"
 )
 
@@ -107,7 +108,6 @@ func TestAssembler_Read(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -123,18 +123,18 @@ func TestAssembler_Read(t *testing.T) {
 				assert.Equal(t, len(exp), n)
 				assert.Equal(t, exp, string(buf[:n]))
 				if i < len(tt.expected)-1 {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				} else {
 					if tt.finalErr != nil {
-						assert.ErrorIs(t, err, tt.finalErr)
+						require.ErrorIs(t, err, tt.finalErr)
 					} else {
-						assert.NoError(t, err)
+						require.NoError(t, err)
 					}
 				}
 			}
 
 			n, err := assembler.Read(buf)
-			assert.ErrorIs(t, err, tt.finalErr)
+			require.ErrorIs(t, err, tt.finalErr)
 			assert.Equal(t, 0, n)
 
 			// Verify no packets remain after completion
@@ -156,7 +156,7 @@ func TestAssembler_Close(t *testing.T) {
 	}
 
 	err := assembler.Close()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, assembler.closed)
 }
 
@@ -165,7 +165,7 @@ func TestAssembler_CloseWithoutOtherCalls(t *testing.T) {
 	// initializes internal state before closing.
 	var a Assembler
 	err := a.Close()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, a.closed)
 	assert.NotNil(t, a.event, "Close() should initialize the event channel")
 	assert.NotNil(t, a.packets, "Close() should initialize the packets map")
@@ -226,7 +226,6 @@ func TestAssembler_CloseWithGap(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -246,7 +245,7 @@ func TestAssembler_CloseWithGap(t *testing.T) {
 			n, err := assembler.Read(buf)
 
 			assert.Equal(t, 0, n, "should not read any bytes")
-			assert.ErrorIs(t, err, tt.expectErr, tt.description)
+			require.ErrorIs(t, err, tt.expectErr, tt.description)
 
 			// Verify packets were cleaned up
 			assert.Empty(t, assembler.packets, "buffered packets should be cleared")
@@ -302,7 +301,6 @@ func TestAssembler_ProcessWRP_PacketGap(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -326,7 +324,7 @@ func TestAssembler_ProcessWRP_PacketGap(t *testing.T) {
 			err := assembler.ProcessWRP(context.Background(), msg)
 
 			if tt.expectError {
-				assert.ErrorIs(t, err, ErrPacketGapExceeded)
+				require.ErrorIs(t, err, ErrPacketGapExceeded)
 				assert.Empty(t, assembler.packets, "packet should not be buffered when gap exceeded")
 			} else {
 				assert.NoError(t, err)
@@ -571,7 +569,6 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable for parallel subtest
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -588,7 +585,7 @@ func TestAssembler_ProcessWRP(t *testing.T) {
 			}
 
 			err := this.ProcessWRP(ctx, tt.msg)
-			assert.ErrorIs(t, err, tt.err)
+			require.ErrorIs(t, err, tt.err)
 			assert.Equal(t, tt.expected, this.packets)
 		})
 	}

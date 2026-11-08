@@ -280,7 +280,7 @@ func (a *Assembler) ProcessWRP(_ context.Context, msg wrp.Message) error {
 	if a.MaxPacketGap > 0 {
 		gap := ssp.StreamPacketNumber - a.current
 		if gap > int64(a.MaxPacketGap) {
-			return &packetGapExceeded{
+			return &packetGapExceededError{
 				current:  a.current,
 				received: ssp.StreamPacketNumber,
 				maxGap:   a.MaxPacketGap,
